@@ -9,6 +9,8 @@ import {
   Plane, Building2, Link2
 } from "lucide-react";
 import "./styles.css";
+import { authApi } from "./api.js";
+
 
 const jobs = [
   { id: 1, title: "Frontend Developer", company: "WebFlow", location: "San Francisco, CA (Hybrid)", skills: ["React","TypeScript","CSS"], salary: "$120k - $150k", icon: Code2, mode: "Hybrid", type: "Full-time" },
@@ -68,7 +70,47 @@ function Layout({page,setPage,children,onProfile}) {
 
 function Login({onLogin}) {
   const [email,setEmail]=useState("");
+  const [otp,setOtp]=useState("");
   const [sent,setSent]=useState(false);
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+
+  async function handleSendOtp(){
+    setError("");
+    const value=email.trim().toLowerCase();
+    if(!value){
+      setError("Please enter your college email.");
+      return;
+    }
+    try{
+      setLoading(true);
+      await authApi.requestOtp(value);
+      setSent(true);
+    }catch(err){
+      setError(err.message || "Unable to send OTP.");
+    }finally{
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyOtp(){
+    setError("");
+    if(!/^\d{6}$/.test(otp)){
+      setError("Please enter the 6-digit OTP.");
+      return;
+    }
+    try{
+      setLoading(true);
+      const data=await authApi.verifyOtp(email.trim().toLowerCase(),otp);
+      localStorage.setItem("cc_token",data.token);
+      onLogin(data.user);
+    }catch(err){
+      setError(err.message || "Invalid or expired OTP.");
+    }finally{
+      setLoading(false);
+    }
+  }
+
   return <div className="login-page">
     <section className="login-left">
       <div className="login-brand">CareerConnect AI</div>
@@ -78,20 +120,35 @@ function Login({onLogin}) {
     </section>
     <section className="login-right">
       <div className="login-card">
-        <h1>Welcome back</h1><p>Sign in to continue to your placement journey.</p>
+        <h1>Welcome back</h1>
+        <p>Sign in to continue to your placement journey.</p>
         {!sent ? <>
           <label>College Email</label>
-          <div className="input-icon"><FileText size={20}/><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@college.edu"/></div>
-          <button className="primary wide" onClick={()=>setSent(true)}>Send OTP <ArrowRight size={18}/></button>
+          <div className="input-icon">
+            <FileText size={20}/>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSendOtp()} placeholder="name@college.edu" autoComplete="email"/>
+          </div>
+          {error&&<div className="auth-error">{error}</div>}
+          <button className="primary wide" onClick={handleSendOtp} disabled={loading}>
+            {loading?"Sending...":"Send OTP"} <ArrowRight size={18}/>
+          </button>
         </> : <>
-          <label>Enter OTP</label><div className="input-icon"><ShieldCheck size={20}/><input placeholder="6-digit OTP"/></div>
-          <button className="primary wide" onClick={onLogin}>Verify & Continue <ArrowRight size={18}/></button>
-          <button className="text-btn" onClick={()=>setSent(false)}>Change email</button>
+          <div className="otp-sent">OTP sent to <strong>{email}</strong></div>
+          <label>Enter OTP</label>
+          <div className="input-icon">
+            <ShieldCheck size={20}/>
+            <input type="text" inputMode="numeric" maxLength={6} value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,""))} onKeyDown={e=>e.key==="Enter"&&handleVerifyOtp()} placeholder="6-digit OTP" autoComplete="one-time-code"/>
+          </div>
+          {error&&<div className="auth-error">{error}</div>}
+          <button className="primary wide" onClick={handleVerifyOtp} disabled={loading}>
+            {loading?"Verifying...":"Verify & Continue"} <ArrowRight size={18}/>
+          </button>
+          <button className="text-btn" onClick={()=>{setSent(false);setOtp("");setError("");}} disabled={loading}>Change email</button>
         </>}
         <hr/><p className="legal">By continuing, you agree to our <b>Terms of Service</b> and <b>Privacy Policy</b>.</p>
       </div>
     </section>
-  </div>
+  </div>;
 }
 
 function Home({setPage}) {
@@ -160,7 +217,7 @@ function Notifications({setPage}) {
 function Notification({icon,title,text,time,success,old,button}){return <div className={"notification "+(success?"success":"")}><div className="notif-icon">{icon}</div><div><h3>{title}</h3><p>{text}</p>{button&&<button className="secondary">View Job</button>}</div><time>{time}{!old&&<i/>}</time></div>}
 
 function App(){
-  const [page,setPage]=useState("login");
+  const [page,setPage]=useState(localStorage.getItem("cc_token")?"home":"login");
   if(page==="login") return <Login onLogin={()=>setPage("home")}/>;
   const pages={home:<Home setPage={setPage}/>,jobs:<Jobs setPage={setPage}/>, "job-detail":<JobDetail setPage={setPage}/>,applications:<Applications setPage={setPage}/>,profile:<Profile setPage={setPage}/>,notifications:<Notifications setPage={setPage}/>};
   return pages[page] || pages.home;

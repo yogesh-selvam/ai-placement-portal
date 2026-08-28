@@ -156,3 +156,173 @@ footer {
     padding-inline: 16px;
   }
 }
+
+
+/* =========================================================
+   AUTHENTICATION MODULE - FINAL ALIGNMENT & ERROR STATES
+   ========================================================= */
+
+.auth-error {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px 13px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.otp-sent {
+  width: 100%;
+  margin: 16px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid #ddd6fe;
+  border-radius: 8px;
+  background: #f5f3ff;
+  color: #4c1d95;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.login-page {
+  min-height: 100vh;
+  width: 100%;
+}
+
+.login-left,
+.login-right {
+  min-width: 0;
+}
+
+.login-right {
+  display: grid;
+  place-items: center;
+}
+
+.login-card {
+  width: min(560px, 100%);
+  margin: auto;
+}
+
+.login-card label {
+  display: block;
+  margin: 28px 0 8px;
+}
+
+.input-icon {
+  width: 100%;
+  min-width: 0;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.input-icon:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(31, 16, 142, .08);
+}
+
+.input-icon input {
+  min-width: 0;
+  width: 100%;
+}
+
+.login-card .primary {
+  width: 100%;
+}
+
+.login-card .primary:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
+
+.login-card .text-btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.login-card input[inputmode="numeric"],
+.login-card input[type="number"] {
+  letter-spacing: 5px;
+  font-weight: 600;
+}
+
+.login-card .legal {
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 1000px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .login-left {
+    display: none;
+  }
+
+  .login-right {
+    min-height: 100vh;
+    padding: 28px 20px;
+  }
+}
+
+@media (max-width: 650px) {
+  .login-right {
+    padding: 18px 14px;
+  }
+
+  .login-card {
+    padding: 28px 20px;
+    border-radius: 14px;
+  }
+
+  .login-card h1 {
+    font-size: 29px;
+  }
+
+  .login-card > p {
+    font-size: 16px;
+  }
+
+  .input-icon {
+    height: 52px;
+  }
+
+  .login-card .primary {
+    height: 52px;
+  }
+}
+
+/* =========================================================
+   GLOBAL OVERFLOW / ALIGNMENT SAFETY
+   ========================================================= */
+
+img,
+svg,
+video {
+  max-width: 100%;
+}
+
+button,
+input,
+select {
+  max-width: 100%;
+}
+
+h1,
+h2,
+h3,
+p {
+  overflow-wrap: anywhere;
+}
+
+/* Prevent the assistant and fixed elements from creating
+   horizontal scrolling on smaller screens. */
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
