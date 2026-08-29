@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Search, UserCircle, Bookmark, FileText, UsersRound, Video,
@@ -9,21 +9,17 @@ import {
   Plane, Building2, Link2
 } from "lucide-react";
 import "./styles.css";
-import { authApi } from "./api.js";
+import {
+  authApi,
+  jobsApi,
+  applicationsApi,
+  profileApi,
+  notificationsApi,
+  assistantApi,
+} from "./api.js";
 
 
-const jobs = [
-  { id: 1, title: "Frontend Developer", company: "WebFlow", location: "San Francisco, CA (Hybrid)", skills: ["React","TypeScript","CSS"], salary: "$120k - $150k", icon: Code2, mode: "Hybrid", type: "Full-time" },
-  { id: 2, title: "Data Analyst", company: "InsightCorp", location: "Remote", skills: ["SQL","Python","Tableau"], salary: "$90k - $120k", icon: BarChart3, mode: "Remote", type: "Full-time" },
-  { id: 3, title: "Software Developer", company: "TechNova", location: "San Francisco, CA (Remote)", skills: ["React","Node.js","TypeScript"], salary: "$120k - $150k", icon: BriefcaseBusiness, mode: "Remote", type: "Full-time" },
-  { id: 4, title: "AI/ML Intern", company: "FutureScale", location: "Remote", skills: ["Python","PyTorch","Data Analysis"], salary: "$40/hr", icon: Sparkles, mode: "Remote", type: "Internship" }
-];
 
-const applications = [
-  { title:"Senior Frontend Engineer", company:"TechNova Systems", location:"San Francisco, CA", status:"Interview", date:"Oct 12, 2023", skills:["React","TypeScript"], salary:"$140k - $170k" },
-  { title:"Product Designer", company:"EcoSolutions", location:"Remote", status:"Shortlisted", date:"Oct 18, 2023", skills:["Figma","UX Research"] },
-  { title:"Data Analyst", company:"FinCorp Global", location:"New York, NY", status:"Under Review", date:"Oct 20, 2023", skills:["SQL","Python"] }
-];
 
 function Header({ page, setPage, onProfile }) {
   return <header className="header">
@@ -48,17 +44,78 @@ function Footer(){ return <footer><b>CareerConnect AI</b><span>© 2024 CareerCon
 function AIButton({open,onClick}) { return <button className="ai-fab" onClick={onClick} title="CareerConnect AI Assistant">{open ? <X/> : <Sparkles/>}</button> }
 
 function Assistant({close}) {
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState([
+    {
+      role: "assistant",
+      text: "Hi! How can I help you today? I can help with job matching, resume improvement, and interview preparation.",
+    },
+  ]);
+  const [loading, setLoading] = useState(false);
+
+  async function sendMessage(text = message) {
+    const value = text.trim();
+    if (!value || loading) return;
+
+    setMessages(prev => [...prev, { role: "user", text: value }]);
+    setMessage("");
+    setLoading(true);
+
+    try {
+      const data = await assistantApi.chat(value);
+      setMessages(prev => [...prev, { role: "assistant", text: data.reply }]);
+    } catch (err) {
+      setMessages(prev => [
+        ...prev,
+        { role: "assistant", text: err.message || "Unable to contact the AI assistant." },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return <aside className="assistant">
-    <div className="assistant-head"><div className="bot"><Sparkles size={18}/></div><div><strong>CareerConnect AI Assistant</strong><small>Your personal career mentor</small></div><button onClick={close}><X/></button></div>
+    <div className="assistant-head">
+      <div className="bot"><Sparkles size={18}/></div>
+      <div><strong>CareerConnect AI Assistant</strong><small>Your personal career mentor</small></div>
+      <button onClick={close}><X/></button>
+    </div>
+
     <div className="assistant-body">
-      <div className="assistant-msg"><div className="bot tiny"><Sparkles size={14}/></div><div className="bubble">Hi Alex! How can I help you today? I can analyze your resume, find matching jobs, or help with interview prep.</div></div>
+      {messages.map((m, index) => (
+        <div className="assistant-msg" key={index}>
+          {m.role === "assistant" && <div className="bot tiny"><Sparkles size={14}/></div>}
+          <div className="bubble">{m.text}</div>
+        </div>
+      ))}
+
+      {loading && (
+        <div className="assistant-msg">
+          <div className="bot tiny"><Sparkles size={14}/></div>
+          <div className="bubble">Thinking...</div>
+        </div>
+      )}
+
       <div className="suggestions">
-        <button>Find jobs matching my skills</button>
-        <button>Improve my resume</button>
-        <button>Interview prep for TechNova</button>
+        <button onClick={() => sendMessage("Find jobs matching my skills")}>Find jobs matching my skills</button>
+        <button onClick={() => sendMessage("Improve my resume")}>Improve my resume</button>
+        <button onClick={() => sendMessage("Help me prepare for an interview")}>Interview prep</button>
       </div>
     </div>
-    <div className="assistant-input"><Paperclip size={20}/><input placeholder="Type a message..."/><button><Send size={18}/></button></div>
+
+    <div className="assistant-input">
+      <Paperclip size={20}/>
+      <input
+        placeholder="Type a message..."
+        value={message}
+        onChange={e => setMessage(e.target.value)}
+        onKeyDown={e => e.key === "Enter" && sendMessage()}
+        disabled={loading}
+      />
+      <button onClick={() => sendMessage()} disabled={loading || !message.trim()}>
+        <Send size={18}/>
+      </button>
+    </div>
     <small className="disclaimer">AI can make mistakes. Consider verifying important information.</small>
   </aside>
 }
@@ -151,16 +208,108 @@ function Login({onLogin}) {
   </div>;
 }
 
-function Home({setPage}) {
+function Home({setPage, user}) {
+  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDashboard() {
+      try {
+        setLoading(true);
+        setError("");
+        const [jobsData, applicationsData, profileData] = await Promise.all([
+          jobsApi.getAll(),
+          applicationsApi.getAll(),
+          profileApi.get(),
+        ]);
+
+        if (!active) return;
+        setJobs(Array.isArray(jobsData) ? jobsData : []);
+        setApplications(Array.isArray(applicationsData) ? applicationsData : []);
+        setProfile(profileData);
+      } catch (err) {
+        if (active) setError(err.message || "Unable to load dashboard.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadDashboard();
+    return () => { active = false; };
+  }, []);
+
+  const shortlisted = applications.filter(a => a.status === "SHORTLISTED").length;
+  const interviews = applications.filter(a => a.status === "INTERVIEW").length;
+
+  const completion = profile
+    ? Math.min(
+        100,
+        20 +
+        (profile.name ? 15 : 0) +
+        (profile.degree ? 15 : 0) +
+        (profile.university ? 10 : 0) +
+        (profile.graduationYear ? 10 : 0) +
+        (profile.gpa ? 10 : 0) +
+        (profile.skills?.length ? 10 : 0) +
+        (profile.projects?.length ? 10 : 0)
+      )
+    : 0;
+
   return <Layout page="home" setPage={setPage} onProfile={()=>setPage("profile")}>
     <main className="container home">
-      <div className="hero-row"><div><h1>Good morning, Alex 👋</h1><p>Let's find your next great opportunity.</p></div><div className="completion"><span>Profile Completion <b>80%</b></span><div className="progress"><i style={{width:"80%"}}/></div><button className="primary" onClick={()=>setPage("profile")}>Complete Profile</button></div></div>
-      <div className="search-box"><Search/><input placeholder="Search for jobs, skills, or locations..."/><button className="primary">Search</button></div>
-      <div className="stats">
-        <Stat icon={<FileText/>} title="Applications" value="12"/><Stat icon={<UsersRound/>} title="Shortlisted" value="4"/><Stat icon={<Video/>} title="Interviews" value="2" active/><Stat icon={<Bookmark/>} title="Saved" value="8"/>
+      <div className="hero-row">
+        <div>
+          <h1>Good morning, {profile?.name || user?.name || "there"} 👋</h1>
+          <p>Let's find your next great opportunity.</p>
+        </div>
+        <div className="completion">
+          <span>Profile Completion <b>{completion}%</b></span>
+          <div className="progress"><i style={{width:`${completion}%`}}/></div>
+          <button className="primary" onClick={()=>setPage("profile")}>Complete Profile</button>
+        </div>
       </div>
-      <div className="section-title"><h2>Recommended for you</h2><span><Sparkles size={16}/> AI Matched</span></div>
-      <div className="job-grid">{jobs.slice(2,4).map(j=><JobCard key={j.id} job={j} compact onView={()=>setPage("job-detail")}/>)}</div>
+
+      {error && <div className="auth-error">{error}</div>}
+
+      <div className="search-box">
+        <Search/>
+        <input
+          placeholder="Search for jobs, skills, or locations..."
+          onKeyDown={e => {
+            if (e.key === "Enter") setPage("jobs");
+          }}
+        />
+        <button className="primary" onClick={()=>setPage("jobs")}>Search</button>
+      </div>
+
+      <div className="stats">
+        <Stat icon={<FileText/>} title="Applications" value={loading ? "—" : applications.length}/>
+        <Stat icon={<UsersRound/>} title="Shortlisted" value={loading ? "—" : shortlisted}/>
+        <Stat icon={<Video/>} title="Interviews" value={loading ? "—" : interviews} active/>
+        <Stat icon={<Bookmark/>} title="Saved" value="0"/>
+      </div>
+
+      <div className="section-title">
+        <h2>Recommended for you</h2>
+        <span><Sparkles size={16}/> AI Matched</span>
+      </div>
+
+      {loading ? (
+        <p>Loading recommended jobs...</p>
+      ) : jobs.length === 0 ? (
+        <p>No jobs available yet. Open the Jobs page to refresh.</p>
+      ) : (
+        <div className="job-grid">
+          {jobs.slice(0, 2).map(j =>
+            <JobCard key={j.id} job={j} compact onView={()=>setPage("job-detail", j.id)}/>
+          )}
+        </div>
+      )}
     </main>
   </Layout>
 }
@@ -168,58 +317,532 @@ function Stat({icon,title,value,active}) { return <div className={"stat "+(activ
 
 function JobCard({job,compact=false,onView}) {
   const [saved,setSaved]=useState(false);
-  const Icon=job.icon;
+  const Icon=job.icon || BriefcaseBusiness;
+  const skills = Array.isArray(job.skills) ? job.skills : [];
+
   return <article className={"job-card "+(compact?"compact":"")}>
-    <div className="job-top"><div className="job-icon"><Icon size={26}/></div><button className={"bookmark "+(saved?"saved":"")} onClick={()=>setSaved(!saved)}><Bookmark fill={saved?"currentColor":"none"}/></button></div>
-    <h3>{job.title}</h3><p className="company">{job.company} • {job.location}</p>
-    <div className="chips">{job.skills.map(s=><span key={s}>{s}</span>)}</div>
-    <div className="job-bottom"><b>{job.salary}</b><button className="secondary" onClick={onView}>View Details</button></div>
+    <div className="job-top">
+      <div className="job-icon"><Icon size={26}/></div>
+      <button className={"bookmark "+(saved?"saved":"")} onClick={()=>setSaved(!saved)}>
+        <Bookmark fill={saved?"currentColor":"none"}/>
+      </button>
+    </div>
+    <h3>{job.title}</h3>
+    <p className="company">{job.company} • {job.location}</p>
+    <div className="chips">{skills.map(s=><span key={s}>{s}</span>)}</div>
+    <div className="job-bottom">
+      <b>{job.salary || "Salary not specified"}</b>
+      <button className="secondary" onClick={onView}>View Details</button>
+    </div>
   </article>
 }
 
-function Jobs({setPage}) {
-  const [remote,setRemote]=useState(true), [hybrid,setHybrid]=useState(true), [intern,setIntern]=useState(true);
-  const visible=jobs.filter(j => (remote && j.mode==="Remote") || (hybrid && j.mode==="Hybrid") || (intern && j.type==="Internship"));
-  return <Layout page="jobs" setPage={setPage} onProfile={()=>setPage("profile")}><main className="container jobs-page">
-    <div className="page-heading"><h1>Find your next opportunity</h1><select><option>Most Relevant</option><option>Newest</option></select></div>
-    <div className="jobs-layout">
-      <aside className="filters"><div className="filter-head"><h3>Filters</h3><button className="text-btn">Clear all</button></div><h4>Job Type</h4><Check label="Full-time" checked/><Check label="Part-time"/><Check label="Internship" checked={intern} setChecked={setIntern}/><hr/><h4>Work Mode</h4><Check label="Remote" checked={remote} setChecked={setRemote}/><Check label="Hybrid" checked={hybrid} setChecked={setHybrid}/><Check label="On-site"/><hr/><button className="secondary wide">Apply Filters</button></aside>
-      <section className="job-list">{visible.map(j=><div className="list-job" key={j.id}><div className="job-icon"><j.icon/></div><div className="list-main"><h3>{j.title}</h3><p>{j.company} • {j.location}</p><div className="chips">{j.skills.map(s=><span key={s}>{s}</span>)}</div></div><Bookmark className="list-bookmark"/><div className="list-bottom"><b>{j.salary}</b><div><button className="secondary">Save</button><button className="primary" onClick={()=>setPage("job-detail")}>Apply Now</button></div></div></div>)}</section>
-    </div>
-  </main></Layout>
+function Jobs({setPage, setSelectedJob}) {
+  const [jobs,setJobs]=useState([]);
+  const [search,setSearch]=useState("");
+  const [mode,setMode]=useState("");
+  const [type,setType]=useState("");
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+
+  async function loadJobs(filters = {}) {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await jobsApi.getAll(filters);
+      setJobs(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || "Unable to load jobs.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadJobs();
+  }, []);
+
+  function applyFilters() {
+    loadJobs({ search, mode, type });
+  }
+
+  function openJob(job) {
+    setSelectedJob(job);
+    setPage("job-detail");
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setMode("");
+    setType("");
+    loadJobs();
+  }
+
+  return <Layout page="jobs" setPage={setPage} onProfile={()=>setPage("profile")}>
+    <main className="container jobs-page">
+      <div className="page-heading">
+        <div>
+          <h1>Find your next opportunity</h1>
+          <p>Search jobs directly from the CareerConnect database.</p>
+        </div>
+        <select onChange={e => loadJobs({ search, mode, type, sort: e.target.value })}>
+          <option>Most Relevant</option>
+          <option>Newest</option>
+        </select>
+      </div>
+
+      {error && <div className="auth-error">{error}</div>}
+
+      <div className="search-box">
+        <Search/>
+        <input
+          value={search}
+          onChange={e=>setSearch(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&applyFilters()}
+          placeholder="Search jobs, skills, companies, or locations..."
+        />
+        <button className="primary" onClick={applyFilters}>Search</button>
+      </div>
+
+      <div className="jobs-layout">
+        <aside className="filters">
+          <div className="filter-head">
+            <h3>Filters</h3>
+            <button className="text-btn" onClick={clearFilters}>Clear all</button>
+          </div>
+
+          <h4>Job Type</h4>
+          <Check label="All types" checked={type === ""} setChecked={() => setType("")}/>
+          <Check label="Full-time" checked={type === "Full-time"} setChecked={() => setType("Full-time")}/>
+          <Check label="Part-time" checked={type === "Part-time"} setChecked={() => setType("Part-time")}/>
+          <Check label="Internship" checked={type === "Internship"} setChecked={() => setType("Internship")}/>
+
+          <hr/>
+
+          <h4>Work Mode</h4>
+          <Check label="All modes" checked={mode === ""} setChecked={() => setMode("")}/>
+          <Check label="Remote" checked={mode === "Remote"} setChecked={() => setMode("Remote")}/>
+          <Check label="Hybrid" checked={mode === "Hybrid"} setChecked={() => setMode("Hybrid")}/>
+          <Check label="On-site" checked={mode === "On-site"} setChecked={() => setMode("On-site")}/>
+
+          <hr/>
+          <button className="secondary wide" onClick={applyFilters}>Apply Filters</button>
+        </aside>
+
+        <section className="job-list">
+          {loading ? (
+            <p>Loading jobs...</p>
+          ) : jobs.length === 0 ? (
+            <p>No jobs found for the selected filters.</p>
+          ) : jobs.map(j => (
+            <div className="list-job" key={j.id}>
+              <div className="job-icon"><BriefcaseBusiness/></div>
+              <div className="list-main">
+                <h3>{j.title}</h3>
+                <p>{j.company} • {j.location}</p>
+                <div className="chips">
+                  {(Array.isArray(j.skills) ? j.skills : []).map(s=><span key={s}>{s}</span>)}
+                </div>
+              </div>
+              <Bookmark className="list-bookmark"/>
+              <div className="list-bottom">
+                <b>{j.salary || "Salary not specified"}</b>
+                <div>
+                  <button className="secondary" onClick={()=>openJob(j)}>View</button>
+                  <button className="primary" onClick={()=>openJob(j)}>Apply Now</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </section>
+      </div>
+    </main>
+  </Layout>
 }
 function Check({label,checked,setChecked}) { return <label className="check"><input type="checkbox" checked={!!checked} onChange={e=>setChecked?.(e.target.checked)}/><span>{label}</span></label> }
 
-function JobDetail({setPage}) {
-  return <Layout page="jobs" setPage={setPage} onProfile={()=>setPage("profile")}><main className="container detail">
-    <div className="breadcrumb">Jobs <span>›</span> Software Developer</div>
-    <div className="detail-head"><div className="job-icon"><BriefcaseBusiness/></div><div><h1>Software Developer</h1><h3>TechNova</h3><p><MapPin/> San Francisco, CA (Remote) &nbsp; <Clock3/> Full-time &nbsp; <CalendarDays/> Posted 2 days ago</p></div><div className="detail-actions"><button className="secondary">🔖 Save Job</button><button className="primary" onClick={()=>setPage("applications")}>Apply Now</button></div></div>
-    <div className="detail-grid"><article className="detail-main"><h2>About the Role</h2><p>TechNova is seeking a passionate and driven Software Developer to join our core product team. You will be instrumental in building the next generation of our AI-driven analytics platform, working closely with cross-functional teams to design, develop, and deploy scalable solutions.</p><p>In this role, you will have the opportunity to tackle complex technical challenges, leverage cutting-edge technologies, and directly impact the performance and reliability of systems used by thousands of enterprise clients globally.</p><hr/><h2>Key Responsibilities</h2>{["Design, implement, and maintain high-performance, reusable, and reliable code for our web applications.","Collaborate with product managers, designers, and other engineers to define system architecture and feature specifications.","Identify and resolve performance and scalability issues in existing infrastructure.","Participate in code reviews to ensure code quality and adherence to best practices."].map(x=><p className="bullet" key={x}><CheckCircle2/> {x}</p>)}<hr/><h2>Required Skills & Technologies</h2><div className="chips">{["React","Node.js","TypeScript","GraphQL","AWS Services"].map(s=><span key={s}>{s}</span>)}</div><hr/><h2>Eligibility</h2><div className="notice">Bachelor's degree in Computer Science, Engineering, or a related field (or equivalent practical experience). Minimum of 3 years of professional software development experience. Must be eligible to work remotely within the United States.</div></article>
-    <aside><div className="side-card"><div>Application Status <b>Not Applied</b></div><div>Application Deadline <em>⚠ Oct 30, 2024</em></div><div className="ai-insight"><Sparkles/> Based on your profile, you have an <strong>85% skill match</strong> for this role. Consider highlighting your React experience.</div></div><div className="side-card"><h2>About TechNova</h2><div className="office-image">TechNova</div><p>TechNova is a leading provider of AI-driven analytics software for enterprise resource planning. Founded in 2018, our mission is to simplify complex data workflows and empower organizations to make smarter, data-backed decisions.</p><div className="company-meta"><span>Industry <b>Software / AI</b></span><span>Company Size <b>200-500 Employees</b></span><span>Website <b>technova.ai</b></span></div></div></aside></div>
-    <section className="perks"><h2>Perks & Benefits</h2><div className="perk-grid">{[[HeartPulse,"Health & Wellness","Comprehensive medical, dental, and vision coverage for you and your dependents."],[Laptop2,"Remote-First Culture","Work from anywhere with a generous home office stipend."],[TrendingUp,"Professional Growth","Annual learning budget and dedicated time for upskilling."],[Plane,"Unlimited PTO","Take the time you need to recharge, with a minimum required time off."]].map(([I,t,d])=><div key={t}><I/><b>{t}</b><p>{d}</p></div>)}</div></section>
-  </main></Layout>
+function JobDetail({setPage, job, refreshApplications}) {
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+  const [applied,setApplied]=useState(false);
+
+  if (!job) {
+    return <Layout page="jobs" setPage={setPage} onProfile={()=>setPage("profile")}>
+      <main className="container detail">
+        <h1>Job not selected</h1>
+        <button className="primary" onClick={()=>setPage("jobs")}>Back to Jobs</button>
+      </main>
+    </Layout>;
+  }
+
+  async function apply() {
+    try {
+      setLoading(true);
+      setError("");
+      await jobsApi.apply(job.id, "");
+      setApplied(true);
+      refreshApplications?.();
+    } catch (err) {
+      setError(err.message || "Unable to apply for this job.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return <Layout page="jobs" setPage={setPage} onProfile={()=>setPage("profile")}>
+    <main className="container detail">
+      <div className="breadcrumb">
+        Jobs <span>›</span> {job.title}
+      </div>
+
+      {error && <div className="auth-error">{error}</div>}
+
+      <div className="detail-head">
+        <div className="job-icon"><BriefcaseBusiness/></div>
+        <div>
+          <h1>{job.title}</h1>
+          <h3>{job.company}</h3>
+          <p>
+            <MapPin/> {job.location} &nbsp;
+            <Clock3/> {job.type} &nbsp;
+            <CalendarDays/> {job.mode}
+          </p>
+        </div>
+        <div className="detail-actions">
+          <button className="secondary">🔖 Save Job</button>
+          <button className="primary" onClick={apply} disabled={loading || applied}>
+            {loading ? "Applying..." : applied ? "Applied ✓" : "Apply Now"}
+          </button>
+        </div>
+      </div>
+
+      <div className="detail-grid">
+        <article className="detail-main">
+          <h2>About the Role</h2>
+          <p>{job.description || "No job description provided."}</p>
+
+          <hr/>
+          <h2>Required Skills & Technologies</h2>
+          <div className="chips">
+            {(Array.isArray(job.skills) ? job.skills : []).map(s=><span key={s}>{s}</span>)}
+          </div>
+
+          <hr/>
+          <h2>Eligibility</h2>
+          <div className="notice">
+            {job.eligibility || "Eligibility details were not provided by the employer."}
+          </div>
+
+          <hr/>
+          <h2>Job Information</h2>
+          <div className="notice">
+            <b>Salary:</b> {job.salary || "Not specified"}<br/>
+            <b>Work Mode:</b> {job.mode || "Not specified"}<br/>
+            <b>Job Type:</b> {job.type || "Not specified"}
+          </div>
+        </article>
+
+        <aside>
+          <div className="side-card">
+            <div>Application Status <b>{applied ? "Applied" : "Not Applied"}</b></div>
+            <div>Company <b>{job.company}</b></div>
+            <div className="ai-insight">
+              <Sparkles/>
+              Review the required skills and tailor your resume before applying.
+            </div>
+          </div>
+
+          <div className="side-card">
+            <h2>About {job.company}</h2>
+            <p>
+              Explore this opportunity and highlight the projects and skills
+              that best match the role.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </Layout>
 }
 
 function Applications({setPage}) {
   const [tab,setTab]=useState("All Applications");
-  return <Layout page="applications" setPage={setPage} onProfile={()=>setPage("profile")}><main className="container apps"><div className="apps-heading"><div><h1>My Applications</h1><p>Track and manage your job applications across various companies.</p></div><button className="primary" onClick={()=>setPage("jobs")}>◉ Browse More Jobs</button></div><div className="tabs">{["All Applications","Applied","Under Review","Shortlisted","Interview","Selected","Rejected"].map(t=><button className={tab===t?"tab active":"tab"} onClick={()=>setTab(t)}>{t}{t==="All Applications"&&<small>12</small>}</button>)}</div><div className="application-grid">{applications.filter(a=>tab==="All Applications" || a.status===tab).map(a=><article className="application-card"><div className="company-logo"><Building2/></div><div><h2>{a.title}</h2><p>{a.company} • {a.location}</p><div className="chips">{a.skills.map(s=><span>{s}</span>)}{a.salary&&<span>{a.salary}</span>}</div></div><div className={"status "+a.status.replaceAll(" ","-").toLowerCase()}>{a.status==="Interview"&&"▣ "}{a.status==="Shortlisted"&&"☆ "}{a.status==="Under Review"&&"◉ "}{a.status}</div><time>Applied: {a.date}</time></article>)}</div></main></Layout>
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+
+  async function loadApplications() {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await applicationsApi.getAll();
+      setRows(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || "Unable to load applications.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadApplications();
+  }, []);
+
+  const filtered = rows.filter(a =>
+    tab === "All Applications" ||
+    a.status === tab.toUpperCase().replaceAll(" ", "_")
+  );
+
+  return <Layout page="applications" setPage={setPage} onProfile={()=>setPage("profile")}>
+    <main className="container apps">
+      <div className="apps-heading">
+        <div>
+          <h1>My Applications</h1>
+          <p>Track and manage your job applications.</p>
+        </div>
+        <button className="primary" onClick={()=>setPage("jobs")}>◉ Browse More Jobs</button>
+      </div>
+
+      {error && <div className="auth-error">{error}</div>}
+
+      <div className="tabs">
+        {["All Applications","Applied","Under Review","Shortlisted","Interview","Selected","Rejected"].map(t=>
+          <button
+            key={t}
+            className={tab===t?"tab active":"tab"}
+            onClick={()=>setTab(t)}
+          >
+            {t}
+            {t==="All Applications"&&<small>{rows.length}</small>}
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p>Loading applications...</p>
+      ) : filtered.length === 0 ? (
+        <p>No applications found.</p>
+      ) : (
+        <div className="application-grid">
+          {filtered.map(a => {
+            const statusLabel = a.status.replaceAll("_", " ");
+            return <article className="application-card" key={a.id}>
+              <div className="company-logo"><Building2/></div>
+              <div>
+                <h2>{a.job?.title || "Job Application"}</h2>
+                <p>{a.job?.company || "Company"} • {a.job?.location || "Location not available"}</p>
+                <div className="chips">
+                  {(Array.isArray(a.job?.skills) ? a.job.skills : String(a.job?.skills || "").split(",").filter(Boolean)).map(s=>
+                    <span key={s}>{String(s).trim()}</span>
+                  )}
+                  {a.job?.salary&&<span>{a.job.salary}</span>}
+                </div>
+              </div>
+              <div className={"status "+statusLabel.replaceAll(" ","-").toLowerCase()}>
+                {statusLabel}
+              </div>
+              <time>Applied: {new Date(a.appliedAt).toLocaleDateString()}</time>
+            </article>;
+          })}
+        </div>
+      )}
+    </main>
+  </Layout>
 }
 
 function Profile({setPage}) {
-  return <Layout page="home" setPage={setPage} onProfile={()=>setPage("profile")}><main className="container profile"><div className="profile-card"><div className="profile-cover"></div><div className="avatar profile-avatar">A</div><h1>Alex Johnson</h1><p>B.Tech in Computer Science</p><span><GraduationCap/> Stanford University</span><div className="profile-progress"><b>Profile Completion <strong>85%</strong></b><div className="progress"><i style={{width:"85%"}}/></div></div></div><div className="profile-content"><Panel title="Education" icon={<GraduationCap/>}><div className="education"><div><b>Stanford University</b><span>B.Tech in Computer Science</span></div><div><small>Class of 2025</small><b>GPA: 3.8/4.0</b></div></div></Panel><Panel title="Technical Skills" icon={<Code2/>}><div className="chips big">{["Java","Python","React","SQL","Git"].map(s=><span>{s}</span>)}</div></Panel><Panel title="Projects" icon={<BriefcaseBusiness/>}><div className="projects"><Project title="AI Resume Parser" text="Developed a Python-based NLP tool to extract key information from unstructured resume PDFs, improving sorting efficiency by 40%."/><Project title="Campus Connect Platform" text="Built a full-stack React and Node.js application for students to organize study groups, serving over 500 active users."/></div></Panel><div className="resume-card"><h2><FileText/> Resume</h2><div className="resume-file">📄 Alex_Resume_2024.pdf <small>2.4 MB</small></div><button className="primary wide">◉ View</button><div className="two-btn"><button className="secondary">⇩ Download</button><button className="secondary">⇧ Update</button></div></div><div className="ai-profile"><Sparkles/><h3>AI Profile Insight</h3><p>Based on your current resume and skills, you are a strong match for Junior React Developer roles. Consider adding a brief summary emphasizing your front-end and architecture experience to boost your match rate.</p></div></div></main></Layout>
+  const [profile,setProfile]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+
+  useEffect(() => {
+    profileApi.get()
+      .then(setProfile)
+      .catch(err => setError(err.message || "Unable to load profile."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return <Layout page="home" setPage={setPage} onProfile={()=>setPage("profile")}>
+      <main className="container profile"><p>Loading profile...</p></main>
+    </Layout>;
+  }
+
+  if (error || !profile) {
+    return <Layout page="home" setPage={setPage} onProfile={()=>setPage("profile")}>
+      <main className="container profile">
+        <div className="auth-error">{error || "Profile not found."}</div>
+      </main>
+    </Layout>;
+  }
+
+  return <Layout page="home" setPage={setPage} onProfile={()=>setPage("profile")}>
+    <main className="container profile">
+      <div className="profile-card">
+        <div className="profile-cover"></div>
+        <div className="avatar profile-avatar">
+          {(profile.name || profile.email || "A").charAt(0).toUpperCase()}
+        </div>
+        <h1>{profile.name || "Your Name"}</h1>
+        <p>{profile.degree || "Degree not added"}</p>
+        <span><GraduationCap/> {profile.university || "University not added"}</span>
+        <div className="profile-progress">
+          <b>Profile Completion <strong>{profile.skills?.length ? "80%" : "50%"}</strong></b>
+          <div className="progress"><i style={{width:profile.skills?.length ? "80%" : "50%"}}/></div>
+        </div>
+      </div>
+
+      <div className="profile-content">
+        <Panel title="Education" icon={<GraduationCap/>}>
+          <div className="education">
+            <div>
+              <b>{profile.university || "University not added"}</b>
+              <span>{profile.degree || "Degree not added"}</span>
+            </div>
+            <div>
+              <small>Class of {profile.graduationYear || "—"}</small>
+              <b>GPA: {profile.gpa || "—"}</b>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel title="Technical Skills" icon={<Code2/>}>
+          <div className="chips big">
+            {(profile.skills || []).map(s=><span key={s.id}>{s.name}</span>)}
+          </div>
+        </Panel>
+
+        <Panel title="Projects" icon={<BriefcaseBusiness/>}>
+          <div className="projects">
+            {(profile.projects || []).length === 0 ? (
+              <p>No projects added yet.</p>
+            ) : profile.projects.map(p =>
+              <Project key={p.id} title={p.title} text={p.description}/>
+            )}
+          </div>
+        </Panel>
+
+        <div className="resume-card">
+          <h2><FileText/> Resume</h2>
+          <div className="resume-file">
+            {profile.resumeUrl ? profile.resumeUrl : "No resume uploaded"}
+          </div>
+          <button className="primary wide" disabled={!profile.resumeUrl}>◉ View</button>
+        </div>
+
+        <div className="ai-profile">
+          <Sparkles/>
+          <h3>AI Profile Insight</h3>
+          <p>
+            Keep your skills, projects, education, and resume updated to improve
+            job matching accuracy.
+          </p>
+        </div>
+      </div>
+    </main>
+  </Layout>
 }
 function Panel({title,icon,children}){return <section className="panel"><h2>{icon}{title}<Pencil size={18}/></h2>{children}</section>}
 function Project({title,text}){return <div className="project"><b>{title}</b><p>{text}</p><a><Link2 size={14}/> View Project</a></div>}
 
 function Notifications({setPage}) {
-  return <Layout page="notifications" setPage={setPage} onProfile={()=>setPage("profile")}><main className="container notifications"><div className="notif-heading"><div><h1>Notifications</h1><p>Stay updated with your placement activities.</p></div><button className="secondary">Mark all as read</button></div><h2>New</h2><Notification icon={<Star/>} title="Shortlisted!" text="You have been shortlisted for Software Developer at TechNova." time="2m ago" success/><Notification icon={<CalendarDays/>} title="Interview Scheduled" text="Technical interview scheduled for Sept 4 at 10:00 AM." time="1h ago"/><h2>Earlier</h2><Notification icon={<Sparkles/>} title="New Recommendation" text="AI suggests applying for Frontend Developer at WebFlow." time="Yesterday" old button/></main></Layout>
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+
+  async function loadNotifications() {
+    try {
+      setLoading(true);
+      const data = await notificationsApi.getAll();
+      setRows(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || "Unable to load notifications.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  async function markAllRead() {
+    try {
+      await notificationsApi.markAllAsRead();
+      await loadNotifications();
+    } catch (err) {
+      setError(err.message || "Unable to update notifications.");
+    }
+  }
+
+  return <Layout page="notifications" setPage={setPage} onProfile={()=>setPage("profile")}>
+    <main className="container notifications">
+      <div className="notif-heading">
+        <div>
+          <h1>Notifications</h1>
+          <p>Stay updated with your placement activities.</p>
+        </div>
+        <button className="secondary" onClick={markAllRead}>Mark all as read</button>
+      </div>
+
+      {error && <div className="auth-error">{error}</div>}
+
+      {loading ? (
+        <p>Loading notifications...</p>
+      ) : rows.length === 0 ? (
+        <p>No notifications yet.</p>
+      ) : (
+        <>
+          <h2>Recent</h2>
+          {rows.map(n =>
+            <Notification
+              key={n.id}
+              icon={<Bell/>}
+              title={n.title}
+              text={n.message}
+              time={new Date(n.createdAt).toLocaleString()}
+              success={!n.read}
+            />
+          )}
+        </>
+      )}
+    </main>
+  </Layout>
 }
 function Notification({icon,title,text,time,success,old,button}){return <div className={"notification "+(success?"success":"")}><div className="notif-icon">{icon}</div><div><h3>{title}</h3><p>{text}</p>{button&&<button className="secondary">View Job</button>}</div><time>{time}{!old&&<i/>}</time></div>}
 
 function App(){
   const [page,setPage]=useState(localStorage.getItem("cc_token")?"home":"login");
-  if(page==="login") return <Login onLogin={()=>setPage("home")}/>;
-  const pages={home:<Home setPage={setPage}/>,jobs:<Jobs setPage={setPage}/>, "job-detail":<JobDetail setPage={setPage}/>,applications:<Applications setPage={setPage}/>,profile:<Profile setPage={setPage}/>,notifications:<Notifications setPage={setPage}/>};
+  const [user,setUser]=useState(null);
+  const [selectedJob,setSelectedJob]=useState(null);
+
+  useEffect(() => {
+    if (!localStorage.getItem("cc_token")) return;
+
+    authApi.me()
+      .then(data => setUser(data))
+      .catch(() => {
+        localStorage.removeItem("cc_token");
+        setPage("login");
+      });
+  }, []);
+
+  function handleLogin(data) {
+    setUser(data);
+    setPage("home");
+  }
+
+  if(page==="login") return <Login onLogin={handleLogin}/>;
+
+  const pages = {
+    home:<Home setPage={setPage} user={user}/>,
+    jobs:<Jobs setPage={setPage} setSelectedJob={setSelectedJob}/>,
+    "job-detail":<JobDetail setPage={setPage} job={selectedJob}/>,
+    applications:<Applications setPage={setPage}/>,
+    profile:<Profile setPage={setPage}/>,
+    notifications:<Notifications setPage={setPage}/>,
+  };
+
   return pages[page] || pages.home;
 }
 createRoot(document.getElementById("root")).render(<App/>);

@@ -26,6 +26,10 @@ async function request(path, options = {}) {
   return data;
 }
 
+/* =========================
+   AUTH API
+========================= */
+
 export const authApi = {
   requestOtp(email) {
     return request("/auth/request-otp", {
@@ -43,5 +47,120 @@ export const authApi = {
 
   me() {
     return request("/auth/me");
+  },
+};
+
+
+/* =========================
+   JOBS API
+========================= */
+
+export const jobsApi = {
+  getAll(params = {}) {
+    const query = new URLSearchParams();
+
+    if (params.search) {
+      query.append("search", params.search);
+    }
+
+    if (params.mode) {
+      query.append("mode", params.mode);
+    }
+
+    if (params.type) {
+      query.append("type", params.type);
+    }
+
+    const queryString = query.toString();
+
+    return request(
+      `/jobs${queryString ? `?${queryString}` : ""}`
+    );
+  },
+
+  getById(id) {
+    return request(`/jobs/${id}`);
+  },
+
+  apply(id, coverLetter = "") {
+    return request(`/jobs/${id}/apply`, {
+      method: "POST",
+      body: JSON.stringify({
+        coverLetter,
+      }),
+    });
+  },
+};
+
+
+/* =========================
+   APPLICATIONS API
+========================= */
+
+export const applicationsApi = {
+  getAll() {
+    return request("/applications");
+  },
+};
+
+
+/* =========================
+   PROFILE API
+========================= */
+
+export const profileApi = {
+  get() {
+    return request("/profile");
+  },
+
+  update(profileData) {
+    return request("/profile", {
+      method: "PUT",
+      body: JSON.stringify(profileData),
+    });
+  },
+};
+
+
+/* =========================
+   NOTIFICATIONS API
+========================= */
+
+export const notificationsApi = {
+  getAll() {
+    return request("/notifications");
+  },
+
+  markAllAsRead() {
+    return request("/notifications/read-all", {
+      method: "PATCH",
+    });
+  },
+};
+
+
+/* =========================
+   AI ASSISTANT API
+========================= */
+
+export const assistantApi = {
+  chat(message) {
+    return request("/assistant/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        message,
+      }),
+    });
+  },
+};
+
+
+/* =========================
+   HEALTH CHECK
+========================= */
+
+export const healthApi = {
+  check() {
+    return request("/health");
   },
 };

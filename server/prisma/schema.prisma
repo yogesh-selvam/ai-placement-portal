@@ -17,16 +17,17 @@ enum ApplicationStatus {
 }
 
 model User {
-  id            Int           @id @default(autoincrement())
-  email         String        @unique
-  name          String        @default("Alex Johnson")
-  degree        String        @default("B.Tech in Computer Science")
-  university    String        @default("Stanford University")
-  graduationYear Int          @default(2025)
-  gpa           String        @default("3.8/4.0")
-  resumeUrl     String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id             Int      @id @default(autoincrement())
+  email          String   @unique
+  name           String   @default("Alex Johnson")
+  degree         String   @default("B.Tech in Computer Science")
+  university     String   @default("Stanford University")
+  graduationYear Int      @default(2025)
+  gpa            String   @default("3.8/4.0")
+  resumeUrl      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
   skills        Skill[]
   projects      Project[]
   applications  Application[]
@@ -37,7 +38,9 @@ model Skill {
   id     Int    @id @default(autoincrement())
   name   String
   userId Int
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, name])
 }
 
@@ -46,11 +49,12 @@ model Project {
   title       String
   description String
   userId      Int
-  user        User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Job {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   title       String
   company     String
   location    String
@@ -60,19 +64,22 @@ model Job {
   description String
   eligibility String
   skills      String
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
+
   applications Application[]
 }
 
 model Application {
-  id           Int               @id @default(autoincrement())
-  userId       Int
-  jobId        Int
-  status       ApplicationStatus @default(APPLIED)
-  coverLetter  String?
-  appliedAt    DateTime          @default(now())
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job          Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  id          Int               @id @default(autoincrement())
+  userId      Int
+  jobId       Int
+  status      ApplicationStatus @default(APPLIED)
+  coverLetter String?
+  appliedAt   DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
   @@unique([userId, jobId])
 }
 
@@ -83,7 +90,8 @@ model Notification {
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model OtpCode {
@@ -93,5 +101,6 @@ model OtpCode {
   expiresAt DateTime
   attempts  Int      @default(0)
   createdAt DateTime @default(now())
+
   @@index([email])
 }
