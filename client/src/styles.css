@@ -326,3 +326,530 @@ body,
   max-width: 100%;
   overflow-x: hidden;
 }
+
+/* =========================
+   NOTIFICATION POLISH
+========================= */
+
+.notification-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.notification-summary > div {
+  border: 1px solid #d8d4ef;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notification-summary strong {
+  font-size: 30px;
+  font-weight: 800;
+  color: #171b2e;
+}
+
+.notification-summary span {
+  color: #555b73;
+  font-size: 14px;
+}
+
+.notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.notification {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #d8d4ef;
+  border-radius: 18px;
+  background: #ffffff;
+  transition: 0.2s ease;
+}
+
+.notification.unread {
+  border-left: 5px solid #3219a8;
+  background: #faf9ff;
+}
+
+.notification.read {
+  opacity: 0.82;
+}
+
+.notification:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(35, 25, 100, 0.08);
+}
+
+.notif-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.notif-title-row h3 {
+  margin: 0;
+}
+
+.notif-content p {
+  margin: 0 0 10px;
+  line-height: 1.55;
+}
+
+.notif-content time {
+  font-size: 13px;
+  color: #73788c;
+}
+
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #3219a8;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.unread-dot {
+  width: 10px;
+  height: 10px;
+  min-width: 10px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: #3219a8;
+}
+
+.notification-empty {
+  margin-top: 30px;
+  padding: 60px 30px;
+  border: 1px dashed #c9c5df;
+  border-radius: 20px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.notification-empty svg {
+  margin-bottom: 12px;
+}
+
+.notification-empty h2,
+.notification-empty h3 {
+  margin: 8px 0;
+}
+
+.notification-empty p {
+  margin: 0;
+  color: #666b80;
+}
+
+.secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .notification-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .notification {
+    padding: 16px;
+  }
+
+  .notif-heading {
+    gap: 16px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* =========================
+   MODULE 5 - APPLICATION TRACKING
+========================= */
+
+.application-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.application-meta {
+  margin-top: 14px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.application-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.application-card > .secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+/* Search */
+.apps > .search-box {
+  margin-bottom: 24px;
+}
+
+.apps > .search-box .text-btn {
+  margin-left: auto;
+}
+
+/* Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.application-modal {
+  width: min(900px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 30px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.25);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-kicker {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #6d4aff;
+  margin-bottom: 8px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.modal-header p {
+  margin: 7px 0 0;
+  color: #64748b;
+  font-size: 16px;
+}
+
+.icon-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid #d8dbe8;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.icon-btn:hover {
+  background: #f5f3ff;
+}
+
+/* Current status */
+.detail-status-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 24px 0;
+  padding: 20px;
+  background: #f7f5ff;
+  border: 1px solid #e6e0ff;
+  border-radius: 16px;
+}
+
+.detail-status-card > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.detail-status-card span,
+.detail-info-grid span {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.detail-status-card b {
+  font-size: 16px;
+}
+
+/* Sections */
+.application-detail-section {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.application-detail-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  font-size: 19px;
+}
+
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.detail-info-grid > div {
+  padding: 15px;
+  border: 1px solid #e5e7eb;
+  border-radius: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-info-grid b {
+  color: #172033;
+}
+
+/* Resume */
+.document-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+}
+
+.document-card > div {
+  flex: 1;
+}
+
+.document-card p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.document-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+/* Interview */
+.interview-card {
+  padding: 22px;
+  border: 1px solid #e6e0ff;
+  background: #faf9ff;
+  border-radius: 16px;
+}
+
+.interview-card .notice {
+  margin-top: 16px;
+}
+
+/* Timeline */
+.application-timeline {
+  position: relative;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 14px;
+  position: relative;
+  padding-bottom: 22px;
+}
+
+.timeline-item:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 24px;
+  bottom: 0;
+  width: 2px;
+  background: #ddd8ff;
+}
+
+.timeline-marker {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4b2bbd;
+  color: white;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.timeline-content {
+  flex: 1;
+}
+
+.timeline-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.timeline-top strong {
+  font-size: 15px;
+}
+
+.timeline-top time {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.timeline-content p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* Progress */
+.progress-track {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  position: relative;
+}
+
+.progress-track::before {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 15px;
+  height: 2px;
+  background: #e2e8f0;
+}
+
+.progress-step {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.progress-dot {
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 8px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.progress-step.completed .progress-dot {
+  background: #4b2bbd;
+  color: #fff;
+}
+
+.progress-step span {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.progress-step.completed span {
+  color: #2f1a8c;
+  font-weight: 700;
+}
+
+.rejected-message {
+  margin-top: 18px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: #fff1f2;
+  color: #be123c;
+  font-size: 14px;
+}
+
+/* Mobile */
+@media (max-width: 700px) {
+  .modal-backdrop {
+    padding: 10px;
+    align-items: flex-end;
+  }
+
+  .application-modal {
+    max-height: 94vh;
+    padding: 20px;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .modal-header h2 {
+    font-size: 22px;
+  }
+
+  .detail-status-card,
+  .detail-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-track {
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 8px;
+  }
+
+  .progress-step {
+    min-width: 100px;
+  }
+
+  .progress-track::before {
+    display: none;
+  }
+
+  .timeline-top {
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .application-card {
+    grid-template-columns: 1fr;
+  }
+}
