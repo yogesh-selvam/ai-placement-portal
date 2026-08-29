@@ -699,18 +699,23 @@ function JobDetail({setPage, job, refreshApplications}) {
   </Layout>
 }
 
-function Applications({setPage}) {
-  const [tab,setTab]=useState("All Applications");
-  const [rows,setRows]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [error,setError]=useState("");
+function Applications({ setPage }) {
+  const [tab, setTab] = useState("All Applications");
+  const [search, setSearch] = useState("");
+  const [rows, setRows] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function loadApplications() {
     try {
       setLoading(true);
       setError("");
+
       const data = await applicationsApi.getAll();
-      setRows(normalizeSavedJobs(data));
+
+      setRows(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message || "Unable to load applications.");
     } finally {
@@ -722,66 +727,607 @@ function Applications({setPage}) {
     loadApplications();
   }, []);
 
-  const filtered = rows.filter(a =>
-    tab === "All Applications" ||
-    a.status === tab.toUpperCase().replaceAll(" ", "_")
-  );
+  async function openDetails(applicationId) {
+    try {
+      setDetailsLoading(true);
+      setError("");
 
-  return <Layout page="applications" setPage={setPage} onProfile={()=>setPage("profile")}>
-    <main className="container apps">
-      <div className="apps-heading">
-        <div>
-          <h1>My Applications</h1>
-          <p>Track and manage your job applications.</p>
-        </div>
-        <button className="primary" onClick={()=>setPage("jobs")}>◉ Browse More Jobs</button>
-      </div>
+      const data = await applicationsApi.getById(applicationId);
 
-      {error && <div className="auth-error">{error}</div>}
+      setSelected(data);
+    } catch (err) {
+      setError(err.message || "Unable to load application details.");
+    } finally {
+      setDetailsLoading(false);
+    }
+  }
 
-      <div className="tabs">
-        {["All Applications","Applied","Under Review","Shortlisted","Interview","Selected","Rejected"].map(t=>
+  function closeDetails() {
+    setSelected(null);
+  }
+
+  const filtered = rows.filter((application) => {
+    const matchesStatus =
+      tab === "All Applications" ||
+      application.status === tab.toUpperCase().replaceAll(" ", "_");
+
+    const searchText = search.trim().toLowerCase();
+
+    if (!searchText) {
+      return matchesStatus;
+    }
+
+    const title = application.job?.title || "";
+    const company = application.job?.company || "";
+
+    const matchesSearch =
+      title.toLowerCase().includes(searchText) ||
+      company.toLowerCase().includes(searchText);
+
+    return matchesStatus && matchesSearch;
+  });
+
+  const statusLabel = (status) => {
+    if (!status) return "Applied";
+
+    return status
+      .replaceAll("_", " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
+
+  const statusClass = (status) => {
+    return String(status || "APPLIED")
+      .replaceAll("_", "-")
+      .toLowerCase();
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "Not available";
+
+    return new Date(date).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const timelineStatuses = [
+    "APPLIED",
+    "UNDER_REVIEW",
+    "SHORTLISTED",
+    "INTERVIEW",
+    "SELECTED",
+  ];
+
+  return (
+    <Layout
+      page="applications"
+      setPage={setPage}
+      onProfile={() => setPage("profile")}
+    >
+      <main className="container apps">
+
+        {/* HEADER */}
+        <div className="apps-heading">
+          <div>
+            <h1>My Applications</h1>
+            <p>
+              Track and manage your job applications across companies.
+            </p>
+          </div>
+
           <button
-            key={t}
-            className={tab===t?"tab active":"tab"}
-            onClick={()=>setTab(t)}
+            className="primary"
+            onClick={() => setPage("jobs")}
           >
-            {t}
-            {t==="All Applications"&&<small>{rows.length}</small>}
+            <BriefcaseBusiness size={17} />
+            Browse More Jobs
           </button>
-        )}
-      </div>
-
-      {loading ? (
-        <p>Loading applications...</p>
-      ) : filtered.length === 0 ? (
-        <p>No applications found.</p>
-      ) : (
-        <div className="application-grid">
-          {filtered.map(a => {
-            const statusLabel = a.status.replaceAll("_", " ");
-            return <article className="application-card" key={a.id}>
-              <div className="company-logo"><Building2/></div>
-              <div>
-                <h2>{a.job?.title || "Job Application"}</h2>
-                <p>{a.job?.company || "Company"} • {a.job?.location || "Location not available"}</p>
-                <div className="chips">
-                  {(Array.isArray(a.job?.skills) ? a.job.skills : String(a.job?.skills || "").split(",").filter(Boolean)).map(s=>
-                    <span key={s}>{String(s).trim()}</span>
-                  )}
-                  {a.job?.salary&&<span>{a.job.salary}</span>}
-                </div>
-              </div>
-              <div className={"status "+statusLabel.replaceAll(" ","-").toLowerCase()}>
-                {statusLabel}
-              </div>
-              <time>Applied: {new Date(a.appliedAt).toLocaleDateString()}</time>
-            </article>;
-          })}
         </div>
-      )}
-    </main>
-  </Layout>
+
+        {/* SEARCH */}
+        <div className="search-box">
+          <Search />
+
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by job title or company..."
+          />
+
+          {search && (
+            <button
+              className="text-btn"
+              onClick={() => setSearch("")}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {/* ERROR */}
+        {error && (
+          <div className="auth-error">
+            {error}
+          </div>
+        )}
+
+        {/* STATUS FILTERS */}
+        <div className="tabs">
+          {[
+            "All Applications",
+            "Applied",
+            "Under Review",
+            "Shortlisted",
+            "Interview",
+            "Selected",
+            "Rejected",
+          ].map((status) => (
+            <button
+              key={status}
+              className={tab === status ? "tab active" : "tab"}
+              onClick={() => setTab(status)}
+            >
+              {status}
+
+              {status === "All Applications" && (
+                <small>{rows.length}</small>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* APPLICATION LIST */}
+        {loading ? (
+          <div className="notification-empty">
+            <BriefcaseBusiness size={40} />
+            <h3>Loading applications...</h3>
+            <p>Please wait while we fetch your applications.</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="notification-empty">
+            <FileText size={42} />
+
+            <h2>
+              {search
+                ? "No matching applications"
+                : "No applications yet"}
+            </h2>
+
+            <p>
+              {search
+                ? "Try another job title or company name."
+                : "Start applying for jobs to track them here."}
+            </p>
+
+            {!search && (
+              <button
+                className="primary"
+                onClick={() => setPage("jobs")}
+              >
+                Browse Jobs
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="application-grid">
+
+            {filtered.map((application) => {
+              const status = application.status || "APPLIED";
+
+              return (
+                <article
+                  className="application-card"
+                  key={application.id}
+                >
+
+                  {/* COMPANY ICON */}
+                  <div className="company-logo">
+                    <Building2 />
+                  </div>
+
+                  {/* APPLICATION INFO */}
+                  <div className="application-main">
+
+                    <h2>
+                      {application.job?.title || "Job Application"}
+                    </h2>
+
+                    <p>
+                      {application.job?.company || "Company"}
+                      {" • "}
+                      {application.job?.location || "Location not available"}
+                    </p>
+
+                    <div className="chips">
+
+                      {(Array.isArray(application.job?.skills)
+                        ? application.job.skills
+                        : String(application.job?.skills || "")
+                            .split(",")
+                            .filter(Boolean)
+                      ).map((skill) => (
+                        <span key={skill}>
+                          {String(skill).trim()}
+                        </span>
+                      ))}
+
+                    </div>
+
+                    <div className="application-meta">
+                      <span>
+                        <CalendarDays size={15} />
+                        Applied {formatDate(application.appliedAt)}
+                      </span>
+                    </div>
+
+                  </div>
+
+                  {/* STATUS */}
+                  <div
+                    className={`status ${statusClass(status)}`}
+                  >
+                    {statusLabel(status)}
+                  </div>
+
+                  {/* VIEW */}
+                  <button
+                    className="secondary"
+                    onClick={() => openDetails(application.id)}
+                  >
+                    <Eye size={16} />
+                    View Details
+                  </button>
+
+                </article>
+              );
+            })}
+
+          </div>
+        )}
+
+        {/* DETAILS MODAL */}
+        {selected && (
+          <div
+            className="modal-backdrop"
+            onClick={closeDetails}
+          >
+            <div
+              className="application-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+
+              <div className="modal-header">
+
+                <div>
+                  <span className="modal-kicker">
+                    APPLICATION DETAILS
+                  </span>
+
+                  <h2>
+                    {selected.job?.title || "Job Application"}
+                  </h2>
+
+                  <p>
+                    {selected.job?.company || "Company"}
+                  </p>
+                </div>
+
+                <button
+                  className="icon-btn"
+                  onClick={closeDetails}
+                  aria-label="Close"
+                >
+                  <X />
+                </button>
+
+              </div>
+
+              {detailsLoading ? (
+                <div className="notification-empty">
+                  <p>Loading details...</p>
+                </div>
+              ) : (
+                <>
+
+                  {/* STATUS */}
+                  <div className="detail-status-card">
+
+                    <div>
+                      <span>Current Status</span>
+
+                      <strong
+                        className={`status ${statusClass(
+                          selected.status
+                        )}`}
+                      >
+                        {statusLabel(selected.status)}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Applied Date</span>
+                      <b>{formatDate(selected.appliedAt)}</b>
+                    </div>
+
+                  </div>
+
+                  {/* JOB INFORMATION */}
+                  <section className="application-detail-section">
+
+                    <h3>Job Information</h3>
+
+                    <div className="detail-info-grid">
+
+                      <div>
+                        <span>Job Title</span>
+                        <b>
+                          {selected.job?.title || "Not available"}
+                        </b>
+                      </div>
+
+                      <div>
+                        <span>Company</span>
+                        <b>
+                          {selected.job?.company || "Not available"}
+                        </b>
+                      </div>
+
+                      <div>
+                        <span>Location</span>
+                        <b>
+                          {selected.job?.location || "Not available"}
+                        </b>
+                      </div>
+
+                      <div>
+                        <span>Work Mode</span>
+                        <b>
+                          {selected.job?.mode || "Not available"}
+                        </b>
+                      </div>
+
+                      <div>
+                        <span>Job Type</span>
+                        <b>
+                          {selected.job?.type || "Not available"}
+                        </b>
+                      </div>
+
+                      <div>
+                        <span>Salary</span>
+                        <b>
+                          {selected.job?.salary || "Not specified"}
+                        </b>
+                      </div>
+
+                    </div>
+
+                  </section>
+
+                  {/* RESUME */}
+                  <section className="application-detail-section">
+
+                    <h3>Application Documents</h3>
+
+                    <div className="document-card">
+                      <FileText size={22} />
+
+                      <div>
+                        <b>Resume Used</b>
+                        <p>
+                          {selected.resumeUsed ||
+                            "Profile resume"}
+                        </p>
+                      </div>
+
+                      {selected.resumeUsed && (
+                        <a
+                          href={selected.resumeUsed}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="secondary"
+                        >
+                          <Eye size={15} />
+                          View
+                        </a>
+                      )}
+
+                    </div>
+
+                  </section>
+
+                  {/* COVER LETTER */}
+                  {selected.coverLetter && (
+                    <section className="application-detail-section">
+
+                      <h3>Cover Letter</h3>
+
+                      <div className="notice">
+                        {selected.coverLetter}
+                      </div>
+
+                    </section>
+                  )}
+
+                  {/* INTERVIEW */}
+                  {(selected.status === "INTERVIEW" ||
+                    selected.interviewDate ||
+                    selected.interviewTime ||
+                    selected.interviewMode) && (
+                    <section className="application-detail-section interview-card">
+
+                      <h3>
+                        <Video size={20} />
+                        Interview Information
+                      </h3>
+
+                      <div className="detail-info-grid">
+
+                        <div>
+                          <span>Date</span>
+                          <b>
+                            {formatDate(selected.interviewDate)}
+                          </b>
+                        </div>
+
+                        <div>
+                          <span>Time</span>
+                          <b>
+                            {selected.interviewTime ||
+                              "Not specified"}
+                          </b>
+                        </div>
+
+                        <div>
+                          <span>Mode</span>
+                          <b>
+                            {selected.interviewMode ||
+                              "Not specified"}
+                          </b>
+                        </div>
+
+                      </div>
+
+                      {selected.interviewInstructions && (
+                        <div className="notice">
+                          <b>Instructions</b>
+                          <p>
+                            {selected.interviewInstructions}
+                          </p>
+                        </div>
+                      )}
+
+                    </section>
+                  )}
+
+                  {/* TIMELINE */}
+                  <section className="application-detail-section">
+
+                    <h3>
+                      <Clock3 size={20} />
+                      Application Timeline
+                    </h3>
+
+                    <div className="application-timeline">
+
+                      {(selected.history?.length
+                        ? selected.history
+                        : [
+                            {
+                              status: selected.status,
+                              createdAt: selected.appliedAt,
+                              note: "Application submitted",
+                            },
+                          ]
+                      ).map((item, index) => {
+
+                        const isLast =
+                          index ===
+                          (selected.history?.length || 1) - 1;
+
+                        return (
+                          <div
+                            className="timeline-item"
+                            key={`${item.status}-${item.createdAt}-${index}`}
+                          >
+
+                            <div className="timeline-marker">
+                              {isLast
+                                ? <CheckCircle2 size={18} />
+                                : <CheckCircle2 size={16} />}
+                            </div>
+
+                            <div className="timeline-content">
+
+                              <div className="timeline-top">
+                                <strong>
+                                  {statusLabel(item.status)}
+                                </strong>
+
+                                <time>
+                                  {formatDate(item.createdAt)}
+                                </time>
+                              </div>
+
+                              {item.note && (
+                                <p>{item.note}</p>
+                              )}
+
+                            </div>
+
+                          </div>
+                        );
+                      })}
+
+                    </div>
+
+                  </section>
+
+                  {/* PROGRESS */}
+                  <section className="application-detail-section">
+
+                    <h3>Application Progress</h3>
+
+                    <div className="progress-track">
+
+                      {timelineStatuses.map((status, index) => {
+
+                        const currentIndex =
+                          timelineStatuses.indexOf(
+                            selected.status
+                          );
+
+                        const completed =
+                          currentIndex >= index &&
+                          selected.status !== "REJECTED";
+
+                        return (
+                          <div
+                            className={
+                              `progress-step ${
+                                completed ? "completed" : ""
+                              }`
+                            }
+                            key={status}
+                          >
+
+                            <div className="progress-dot">
+                              {completed
+                                ? <CheckCircle2 size={15} />
+                                : index + 1}
+                            </div>
+
+                            <span>
+                              {statusLabel(status)}
+                            </span>
+
+                          </div>
+                        );
+                      })}
+
+                    </div>
+
+                    {selected.status === "REJECTED" && (
+                      <div className="rejected-message">
+                        This application was not selected for
+                        the next stage.
+                      </div>
+                    )}
+
+                  </section>
+
+                </>
+              )}
+
+            </div>
+          </div>
+        )}
+
+      </main>
+    </Layout>
+  );
 }
 
 function Profile({setPage}) {
@@ -796,9 +1342,10 @@ function Profile({setPage}) {
     skills: [],
     projects: [],
   });
+
   const [newSkill, setNewSkill] = useState("");
   const [newProject, setNewProject] = useState({ title: "", description: "" });
-  const [editing, setEditing] = useState(false);
+  const [editingSection, setEditingSection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -808,6 +1355,24 @@ function Profile({setPage}) {
     loadProfile();
   }, []);
 
+  function makeForm(data) {
+    return {
+      name: data?.name || "",
+      degree: data?.degree || "",
+      university: data?.university || "",
+      graduationYear: data?.graduationYear || "",
+      gpa: data?.gpa || "",
+      resumeUrl: data?.resumeUrl || "",
+      skills: (data?.skills || []).map(skill =>
+        typeof skill === "string" ? skill : skill.name
+      ),
+      projects: (data?.projects || []).map(project => ({
+        title: project.title || "",
+        description: project.description || "",
+      })),
+    };
+  }
+
   async function loadProfile() {
     try {
       setLoading(true);
@@ -815,19 +1380,7 @@ function Profile({setPage}) {
       const data = await profileApi.get();
 
       setProfile(data);
-      setForm({
-        name: data.name || "",
-        degree: data.degree || "",
-        university: data.university || "",
-        graduationYear: data.graduationYear || "",
-        gpa: data.gpa || "",
-        resumeUrl: data.resumeUrl || "",
-        skills: (data.skills || []).map(skill => skill.name),
-        projects: (data.projects || []).map(project => ({
-          title: project.title,
-          description: project.description,
-        })),
-      });
+      setForm(makeForm(data));
     } catch (err) {
       setError(err.message || "Unable to load profile.");
     } finally {
@@ -838,6 +1391,57 @@ function Profile({setPage}) {
   function updateField(field, value) {
     setForm(prev => ({ ...prev, [field]: value }));
     setSuccess("");
+    setError("");
+  }
+
+  function startEdit(section) {
+    setEditingSection(section);
+    setNewSkill("");
+    setNewProject({ title: "", description: "" });
+    setSuccess("");
+    setError("");
+  }
+
+  function cancelEdit() {
+    if (profile) {
+      setForm(makeForm(profile));
+    }
+
+    setEditingSection(null);
+    setNewSkill("");
+    setNewProject({ title: "", description: "" });
+    setError("");
+    setSuccess("");
+  }
+
+  async function saveSection() {
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const updated = await profileApi.update({
+        name: form.name.trim(),
+        degree: form.degree.trim(),
+        university: form.university.trim(),
+        graduationYear: Number(form.graduationYear) || 2025,
+        gpa: form.gpa.trim(),
+        resumeUrl: form.resumeUrl.trim() || null,
+        skills: form.skills,
+        projects: form.projects,
+      });
+
+      setProfile(updated);
+      setForm(makeForm(updated));
+      setEditingSection(null);
+      setNewSkill("");
+      setNewProject({ title: "", description: "" });
+      setSuccess("Changes saved successfully!");
+    } catch (err) {
+      setError(err.message || "Unable to save changes.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function addSkill() {
@@ -886,69 +1490,6 @@ function Profile({setPage}) {
     setSuccess("");
   }
 
-  function cancelEdit() {
-    if (profile) {
-      setForm({
-        name: profile.name || "",
-        degree: profile.degree || "",
-        university: profile.university || "",
-        graduationYear: profile.graduationYear || "",
-        gpa: profile.gpa || "",
-        resumeUrl: profile.resumeUrl || "",
-        skills: (profile.skills || []).map(skill => skill.name),
-        projects: (profile.projects || []).map(project => ({
-          title: project.title,
-          description: project.description,
-        })),
-      });
-    }
-
-    setEditing(false);
-    setError("");
-    setSuccess("");
-  }
-
-  async function saveProfile() {
-    try {
-      setSaving(true);
-      setError("");
-      setSuccess("");
-
-      const updated = await profileApi.update({
-        name: form.name.trim(),
-        degree: form.degree.trim(),
-        university: form.university.trim(),
-        graduationYear: Number(form.graduationYear) || 2025,
-        gpa: form.gpa.trim(),
-        resumeUrl: form.resumeUrl.trim() || null,
-        skills: form.skills,
-        projects: form.projects,
-      });
-
-      setProfile(updated);
-      setForm({
-        name: updated.name || "",
-        degree: updated.degree || "",
-        university: updated.university || "",
-        graduationYear: updated.graduationYear || "",
-        gpa: updated.gpa || "",
-        resumeUrl: updated.resumeUrl || "",
-        skills: (updated.skills || []).map(skill => skill.name),
-        projects: (updated.projects || []).map(project => ({
-          title: project.title,
-          description: project.description,
-        })),
-      });
-
-      setEditing(false);
-      setSuccess("Profile saved successfully!");
-    } catch (err) {
-      setError(err.message || "Unable to save profile.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   const completion = form
     ? Math.min(
         100,
@@ -984,6 +1525,8 @@ function Profile({setPage}) {
     );
   }
 
+  const isEditing = section => editingSection === section;
+
   return (
     <Layout page="home" setPage={setPage} onProfile={() => setPage("profile")}>
       <main className="container profile">
@@ -1014,112 +1557,140 @@ function Profile({setPage}) {
           </div>
         </div>
 
-        <div className="profile-toolbar">
-          {!editing ? (
-            <button className="primary" onClick={() => {
-              setEditing(true);
-              setSuccess("");
-              setError("");
-            }}>
-              <Pencil size={17}/> Edit Profile
-            </button>
-          ) : (
-            <div className="profile-edit-actions">
-              <button className="secondary" onClick={cancelEdit} disabled={saving}>
-                Cancel
-              </button>
-
-              <button className="primary" onClick={saveProfile} disabled={saving}>
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          )}
-        </div>
-
         {error && <div className="auth-error">{error}</div>}
         {success && <div className="profile-success">{success}</div>}
 
         <div className="profile-content">
 
-          {editing && (
-            <Panel title="Personal Information" icon={<UserCircle/>}>
-              <div className="profile-form-grid">
+          <Panel
+            title="Personal Information"
+            icon={<UserCircle/>}
+            editing={isEditing("personal")}
+            onEdit={() => startEdit("personal")}
+          >
+            {isEditing("personal") ? (
+              <>
+                <div className="profile-form-grid">
+                  <div className="form-field">
+                    <label>Full Name</label>
+                    <input
+                      value={form.name}
+                      onChange={e => updateField("name", e.target.value)}
+                      placeholder="Enter your name"
+                    />
+                  </div>
 
-                <div className="form-field">
-                  <label>Full Name</label>
-                  <input
-                    value={form.name}
-                    onChange={e => updateField("name", e.target.value)}
-                    placeholder="Enter your name"
-                  />
+                  <div className="form-field">
+                    <label>Resume URL</label>
+                    <input
+                      type="url"
+                      value={form.resumeUrl}
+                      onChange={e => updateField("resumeUrl", e.target.value)}
+                      placeholder="https://..."
+                    />
+                  </div>
                 </div>
 
-                <div className="form-field">
-                  <label>Degree</label>
-                  <input
-                    value={form.degree}
-                    onChange={e => updateField("degree", e.target.value)}
-                    placeholder="B.Tech in Computer Science"
-                  />
+                <div className="profile-edit-actions">
+                  <button className="secondary" onClick={cancelEdit} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button className="primary" onClick={saveSection} disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
                 </div>
-
-                <div className="form-field">
-                  <label>University</label>
-                  <input
-                    value={form.university}
-                    onChange={e => updateField("university", e.target.value)}
-                    placeholder="University name"
-                  />
+              </>
+            ) : (
+              <div className="detail-info-grid">
+                <div>
+                  <span>Full Name</span>
+                  <b>{form.name || "Not added"}</b>
                 </div>
-
-                <div className="form-field">
-                  <label>Graduation Year</label>
-                  <input
-                    type="number"
-                    value={form.graduationYear}
-                    onChange={e => updateField("graduationYear", e.target.value)}
-                    placeholder="2025"
-                  />
+                <div>
+                  <span>Resume</span>
+                  <b>{form.resumeUrl ? "Resume available" : "Not added"}</b>
                 </div>
-
-                <div className="form-field">
-                  <label>GPA</label>
-                  <input
-                    value={form.gpa}
-                    onChange={e => updateField("gpa", e.target.value)}
-                    placeholder="3.8/4.0"
-                  />
-                </div>
-
-                <div className="form-field">
-                  <label>Resume URL</label>
-                  <input
-                    type="url"
-                    value={form.resumeUrl}
-                    onChange={e => updateField("resumeUrl", e.target.value)}
-                    placeholder="https://..."
-                  />
-                </div>
-
               </div>
-            </Panel>
-          )}
-
-          <Panel title="Education" icon={<GraduationCap/>}>
-            <div className="education">
-              <div>
-                <b>{form.university || "University not added"}</b>
-                <span>{form.degree || "Degree not added"}</span>
-              </div>
-
-              <div>
-                <small>Class of {form.graduationYear || "—"}</small>
-                <b>GPA: {form.gpa || "—"}</b>
-              </div>
-            </div>
+            )}
           </Panel>
 
-          <Panel title="Technical Skills" icon={<Code2/>}>
+          <Panel
+            title="Education"
+            icon={<GraduationCap/>}
+            editing={isEditing("education")}
+            onEdit={() => startEdit("education")}
+          >
+            {isEditing("education") ? (
+              <>
+                <div className="profile-form-grid">
+                  <div className="form-field">
+                    <label>Degree</label>
+                    <input
+                      value={form.degree}
+                      onChange={e => updateField("degree", e.target.value)}
+                      placeholder="B.E in Computer Science"
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label>University</label>
+                    <input
+                      value={form.university}
+                      onChange={e => updateField("university", e.target.value)}
+                      placeholder="University name"
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label>Graduation Year</label>
+                    <input
+                      type="number"
+                      value={form.graduationYear}
+                      onChange={e => updateField("graduationYear", e.target.value)}
+                      placeholder="2027"
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label>GPA</label>
+                    <input
+                      value={form.gpa}
+                      onChange={e => updateField("gpa", e.target.value)}
+                      placeholder="4.0/4.0"
+                    />
+                  </div>
+                </div>
+
+                <div className="profile-edit-actions">
+                  <button className="secondary" onClick={cancelEdit} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button className="primary" onClick={saveSection} disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="education">
+                <div>
+                  <b>{form.university || "University not added"}</b>
+                  <span>{form.degree || "Degree not added"}</span>
+                </div>
+
+                <div>
+                  <small>Class of {form.graduationYear || "—"}</small>
+                  <b>GPA: {form.gpa || "—"}</b>
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          <Panel
+            title="Technical Skills"
+            icon={<Code2/>}
+            editing={isEditing("skills")}
+            onEdit={() => startEdit("skills")}
+          >
             <div className="chips big">
               {form.skills.length === 0 ? (
                 <p>No skills added yet.</p>
@@ -1127,7 +1698,7 @@ function Profile({setPage}) {
                 form.skills.map(skill => (
                   <span key={skill}>
                     {skill}
-                    {editing && (
+                    {isEditing("skills") && (
                       <button
                         type="button"
                         onClick={() => removeSkill(skill)}
@@ -1141,22 +1712,38 @@ function Profile({setPage}) {
               )}
             </div>
 
-            {editing && (
-              <div className="inline-add">
-                <input
-                  value={newSkill}
-                  onChange={e => setNewSkill(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && addSkill()}
-                  placeholder="Add a skill e.g. Java"
-                />
-                <button className="secondary" onClick={addSkill}>
-                  + Add Skill
-                </button>
-              </div>
+            {isEditing("skills") && (
+              <>
+                <div className="inline-add">
+                  <input
+                    value={newSkill}
+                    onChange={e => setNewSkill(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && addSkill()}
+                    placeholder="Add a skill e.g. Java"
+                  />
+                  <button className="secondary" onClick={addSkill}>
+                    + Add Skill
+                  </button>
+                </div>
+
+                <div className="profile-edit-actions">
+                  <button className="secondary" onClick={cancelEdit} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button className="primary" onClick={saveSection} disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </>
             )}
           </Panel>
 
-          <Panel title="Projects" icon={<BriefcaseBusiness/>}>
+          <Panel
+            title="Projects"
+            icon={<BriefcaseBusiness/>}
+            editing={isEditing("projects")}
+            onEdit={() => startEdit("projects")}
+          >
             <div className="projects">
               {form.projects.length === 0 ? (
                 <p>No projects added yet.</p>
@@ -1166,7 +1753,7 @@ function Profile({setPage}) {
                     <b>{project.title}</b>
                     <p>{project.description}</p>
 
-                    {editing && (
+                    {isEditing("projects") && (
                       <button
                         type="button"
                         className="text-btn"
@@ -1180,59 +1767,103 @@ function Profile({setPage}) {
               )}
             </div>
 
-            {editing && (
-              <div className="project-add">
-                <input
-                  value={newProject.title}
-                  onChange={e =>
-                    setNewProject(prev => ({ ...prev, title: e.target.value }))
-                  }
-                  placeholder="Project title"
-                />
+            {isEditing("projects") && (
+              <>
+                <div className="project-add">
+                  <input
+                    value={newProject.title}
+                    onChange={e =>
+                      setNewProject(prev => ({ ...prev, title: e.target.value }))
+                    }
+                    placeholder="Project title"
+                  />
 
-                <textarea
-                  value={newProject.description}
-                  onChange={e =>
-                    setNewProject(prev => ({ ...prev, description: e.target.value }))
-                  }
-                  placeholder="Project description"
-                  rows={3}
-                />
+                  <textarea
+                    value={newProject.description}
+                    onChange={e =>
+                      setNewProject(prev => ({ ...prev, description: e.target.value }))
+                    }
+                    placeholder="Project description"
+                    rows={3}
+                  />
 
-                <button className="secondary" onClick={addProject}>
-                  + Add Project
-                </button>
-              </div>
+                  <button className="secondary" onClick={addProject}>
+                    + Add Project
+                  </button>
+                </div>
+
+                <div className="profile-edit-actions">
+                  <button className="secondary" onClick={cancelEdit} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button className="primary" onClick={saveSection} disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </>
             )}
           </Panel>
 
           <div className="resume-card">
-            <h2><FileText/> Resume</h2>
-
-            <div className="resume-file">
-              {form.resumeUrl || "No resume uploaded"}
+            <div className="panel-title-row">
+              <h2><FileText/> Resume</h2>
+              {!isEditing("resume") && (
+                <button
+                  type="button"
+                  className="panel-edit-btn"
+                  onClick={() => startEdit("resume")}
+                  title="Edit resume"
+                  aria-label="Edit resume"
+                >
+                  <Pencil size={18}/>
+                </button>
+              )}
             </div>
 
-            {form.resumeUrl ? (
-              <a
-                className="primary wide"
-                href={form.resumeUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Eye size={17}/> View Resume
-              </a>
-            ) : editing ? (
-              <button
-                className="secondary wide"
-                onClick={() => document.querySelector(".resume-card")?.scrollIntoView({ behavior: "smooth" })}
-              >
-                Add Resume URL above
-              </button>
+            {isEditing("resume") ? (
+              <>
+                <div className="profile-form-grid">
+                  <div className="form-field">
+                    <label>Resume URL</label>
+                    <input
+                      type="url"
+                      value={form.resumeUrl}
+                      onChange={e => updateField("resumeUrl", e.target.value)}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+
+                <div className="profile-edit-actions">
+                  <button className="secondary" onClick={cancelEdit} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button className="primary" onClick={saveSection} disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </>
             ) : (
-              <button className="secondary wide" disabled>
-                No Resume
-              </button>
+              <>
+                <div className="resume-file">
+                  {form.resumeUrl || "No resume uploaded"}
+                </div>
+
+                {form.resumeUrl ? (
+                  <a
+                    className="primary wide"
+                    href={form.resumeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Eye size={17}/> View Resume
+                  </a>
+                ) : (
+                  <button className="secondary wide" disabled>
+                    No Resume
+                  </button>
+                )}
+              </>
             )}
           </div>
 
@@ -1250,7 +1881,31 @@ function Profile({setPage}) {
     </Layout>
   );
 }
-function Panel({title,icon,children}){return <section className="panel"><h2>{icon}{title}<Pencil size={18}/></h2>{children}</section>}
+
+function Panel({title, icon, children, editing, onEdit}) {
+  return (
+    <section className="panel">
+      <div className="panel-title-row">
+        <h2>{icon}{title}</h2>
+
+        {!editing && (
+          <button
+            type="button"
+            className="panel-edit-btn"
+            onClick={onEdit}
+            title={`Edit ${title}`}
+            aria-label={`Edit ${title}`}
+          >
+            <Pencil size={18}/>
+          </button>
+        )}
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
 function Project({title,text}){return <div className="project"><b>{title}</b><p>{text}</p><a><Link2 size={14}/> View Project</a></div>}
 
 function SavedJobs({setPage,setSelectedJob}) {
@@ -1356,14 +2011,17 @@ function SavedJobs({setPage,setSelectedJob}) {
   </Layout>
 }
 
-function Notifications({setPage}) {
-  const [rows,setRows]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [error,setError]=useState("");
+function Notifications({ setPage }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [markingRead, setMarkingRead] = useState(false);
+  const [error, setError] = useState("");
 
   async function loadNotifications() {
     try {
+      setError("");
       setLoading(true);
+
       const data = await notificationsApi.getAll();
       setRows(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -1378,93 +2036,237 @@ function Notifications({setPage}) {
   }, []);
 
   async function markAllRead() {
+    const unreadCount = rows.filter((notification) => !notification.read).length;
+
+    if (unreadCount === 0) return;
+
     try {
+      setError("");
+      setMarkingRead(true);
+
       await notificationsApi.markAllAsRead();
-      await loadNotifications();
+
+      setRows((currentRows) =>
+        currentRows.map((notification) => ({
+          ...notification,
+          read: true,
+        }))
+      );
     } catch (err) {
       setError(err.message || "Unable to update notifications.");
+    } finally {
+      setMarkingRead(false);
     }
   }
 
-  return <Layout page="notifications" setPage={setPage} onProfile={()=>setPage("profile")}>
-    <main className="container notifications">
-      <div className="notif-heading">
-        <div>
-          <h1>Notifications</h1>
-          <p>Stay updated with your placement activities.</p>
+  const unreadCount = rows.filter((notification) => !notification.read).length;
+
+  return (
+    <Layout
+      page="notifications"
+      setPage={setPage}
+      onProfile={() => setPage("profile")}
+    >
+      <main className="container notifications">
+
+        <div className="notif-heading">
+          <div>
+            <h1>Notifications</h1>
+            <p>Stay updated with your placement activities.</p>
+          </div>
+
+          <button
+            className="secondary"
+            onClick={markAllRead}
+            disabled={markingRead || unreadCount === 0}
+          >
+            {markingRead
+              ? "Marking..."
+              : unreadCount > 0
+                ? `Mark all as read (${unreadCount})`
+                : "All notifications read"}
+          </button>
         </div>
-        <button className="secondary" onClick={markAllRead}>Mark all as read</button>
+
+        {error && (
+          <div className="auth-error">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="notification-empty">
+            <Bell size={36} />
+            <h3>Loading notifications...</h3>
+            <p>Please wait while we fetch your latest updates.</p>
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="notification-empty">
+            <Bell size={42} />
+            <h2>No notifications yet</h2>
+            <p>
+              Your application and placement updates will appear here.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="notification-summary">
+              <div>
+                <strong>{rows.length}</strong>
+                <span>Total</span>
+              </div>
+
+              <div>
+                <strong>{unreadCount}</strong>
+                <span>Unread</span>
+              </div>
+
+              <div>
+                <strong>{rows.length - unreadCount}</strong>
+                <span>Read</span>
+              </div>
+            </div>
+
+            <h2>Recent</h2>
+
+            <div className="notification-list">
+              {rows.map((notification) => (
+                <Notification
+                  key={notification.id}
+                  icon={<Bell />}
+                  title={notification.title}
+                  text={notification.message}
+                  time={new Date(notification.createdAt).toLocaleString()}
+                  unread={!notification.read}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+      </main>
+    </Layout>
+  );
+}
+
+function Notification({
+  icon,
+  title,
+  text,
+  time,
+  unread,
+}) {
+  return (
+    <div className={`notification ${unread ? "unread" : "read"}`}>
+
+      <div className="notif-icon">
+        {icon}
       </div>
 
-      {error && <div className="auth-error">{error}</div>}
+      <div className="notif-content">
+        <div className="notif-title-row">
+          <h3>{title}</h3>
 
-      {loading ? (
-        <p>Loading notifications...</p>
-      ) : rows.length === 0 ? (
-        <p>No notifications yet.</p>
-      ) : (
-        <>
-          <h2>Recent</h2>
-          {rows.map(n =>
-            <Notification
-              key={n.id}
-              icon={<Bell/>}
-              title={n.title}
-              text={n.message}
-              time={new Date(n.createdAt).toLocaleString()}
-              success={!n.read}
-            />
+          {unread && (
+            <span className="unread-badge">
+              NEW
+            </span>
           )}
-        </>
+        </div>
+
+        <p>{text}</p>
+
+
+        <time>{time}</time>
+      </div>
+
+      {unread && (
+        <span className="unread-dot" title="Unread notification" />
       )}
-    </main>
-  </Layout>
-}
-function Notification({icon,title,text,time,success,old,button}){
-  return <div className={"notification "+(success?"success":"")}>
-    <div className="notif-icon">{icon}</div>
-    <div>
-      <h3>{title}</h3>
-      <p>{text}</p>
-      {button&&<button className="secondary">View Job</button>}
+
     </div>
-    <time>{time}{success&&!old&&<i/>}</time>
-  </div>
+  );
 }
+function App() {
+  const [page, setPage] = useState(
+    localStorage.getItem("cc_token") ? "home" : "login"
+  );
 
-function App(){
-  const [page,setPage]=useState(localStorage.getItem("cc_token")?"home":"login");
-  const [user,setUser]=useState(null);
-  const [selectedJob,setSelectedJob]=useState(null);
+  const [user, setUser] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(null);
 
-  useEffect(() => {
-    if (!localStorage.getItem("cc_token")) return;
-
-    authApi.me()
-      .then(data => setUser(data))
-      .catch(() => {
-        localStorage.removeItem("cc_token");
-        setPage("login");
-      });
-  }, []);
-
-  function handleLogin(data) {
-    setUser(data);
+  function handleLogin(loggedInUser) {
+    setUser(loggedInUser);
     setPage("home");
   }
 
-  if(page==="login") return <Login onLogin={handleLogin}/>;
+  function handleProfile() {
+    setPage("profile");
+  }
 
-  const pages = {
-    home:<Home setPage={setPage} user={user} setSelectedJob={setSelectedJob}/>,
-    jobs:<Jobs setPage={setPage} setSelectedJob={setSelectedJob}/>,
-    "saved-jobs":<SavedJobs setPage={setPage} setSelectedJob={setSelectedJob}/>,
-    "job-detail":<JobDetail setPage={setPage} job={selectedJob}/>,
-    applications:<Applications setPage={setPage}/>,
-    profile:<Profile setPage={setPage}/>,
-    notifications:<Notifications setPage={setPage}/>,
-  };
+  function refreshApplications() {
+    // Applications page reloads automatically when opened.
+  }
 
-  return pages[page] || pages.home;
+  if (page === "login") {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  if (page === "home") {
+    return (
+      <Home
+        setPage={setPage}
+        user={user}
+        setSelectedJob={setSelectedJob}
+      />
+    );
+  }
+
+  if (page === "jobs") {
+    return (
+      <Jobs
+        setPage={setPage}
+        setSelectedJob={setSelectedJob}
+      />
+    );
+  }
+
+  if (page === "job-detail") {
+    return (
+      <JobDetail
+        setPage={setPage}
+        job={selectedJob}
+        refreshApplications={refreshApplications}
+      />
+    );
+  }
+
+  if (page === "applications") {
+    return <Applications setPage={setPage} />;
+  }
+
+  if (page === "profile") {
+    return <Profile setPage={setPage} />;
+  }
+
+  if (page === "saved-jobs") {
+    return (
+      <SavedJobs
+        setPage={setPage}
+        setSelectedJob={setSelectedJob}
+      />
+    );
+  }
+
+  if (page === "notifications") {
+    return <Notifications setPage={setPage} />;
+  }
+
+  return <Home setPage={setPage} user={user} setSelectedJob={setSelectedJob} />;
 }
-createRoot(document.getElementById("root")).render(<App/>);
+
+createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

@@ -26,7 +26,7 @@ model User {
   gpa            String   @default("3.8/4.0")
   resumeUrl      String?
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime @default(now())
 
   skills        Skill[]
   projects      Project[]
@@ -68,21 +68,45 @@ model Job {
   createdAt   DateTime @default(now())
 
   applications Application[]
-  savedBy       SavedJob[]
+  savedBy      SavedJob[]
 }
 
 model Application {
-  id          Int               @id @default(autoincrement())
-  userId      Int
-  jobId       Int
-  status      ApplicationStatus @default(APPLIED)
-  coverLetter String?
-  appliedAt   DateTime          @default(now())
+  id                    Int               @id @default(autoincrement())
+  userId                Int
+  jobId                 Int
+  status                ApplicationStatus @default(APPLIED)
+  coverLetter           String?
+  resumeUsed            String?
+  interviewDate         DateTime?
+  interviewTime         String?
+  interviewMode         String?
+  interviewInstructions String?
+  appliedAt             DateTime          @default(now())
+  updatedAt             DateTime          @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
+  history ApplicationHistory[]
+
   @@unique([userId, jobId])
+  @@index([userId])
+  @@index([jobId])
+  @@index([status])
+}
+
+model ApplicationHistory {
+  id            Int               @id @default(autoincrement())
+  applicationId Int
+  status        ApplicationStatus
+  note          String?
+  createdAt     DateTime          @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([createdAt])
 }
 
 model Notification {

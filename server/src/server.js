@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
@@ -67,7 +67,7 @@ async function sendOtp(email, otp) {
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: email,
-    subject: "CareerConnect AI — Your OTP",
+    subject: "CareerConnect AI â€” Your OTP",
     text: `Your CareerConnect AI login OTP is ${otp}. It expires in 10 minutes.`,
   });
 };
@@ -237,13 +237,34 @@ app.post("/api/jobs/:id/apply", auth, async (req, res) => {
       return res.status(404).json({ message: "Job not found" });
     }
 
-    const application = await prisma.application.create({
-      data: {
-        userId: req.user.id,
-        jobId,
-        coverLetter: req.body.coverLetter || null,
-      },
-    });
+    const application = await prisma.$transaction(async (tx) => {
+  const createdApplication = await tx.application.create({
+    data: {
+      userId: req.user.id,
+      jobId,
+      coverLetter: req.body.coverLetter || null,
+      resumeUsed: req.body.resumeUsed || req.user.resumeUrl || null,
+    },
+  });
+
+  await tx.applicationHistory.create({
+    data: {
+      applicationId: createdApplication.id,
+      status: "APPLIED",
+      note: "Application submitted",
+    },
+  });
+
+  await tx.notification.create({
+    data: {
+      userId: req.user.id,
+      title: "Application submitted",
+      message: `Your application for ${job.title} at ${job.company} has been submitted.`,
+    },
+  });
+
+  return createdApplication;
+});
 
     await prisma.notification.create({
       data: {
@@ -384,31 +405,201 @@ app.delete("/api/saved-jobs/:jobId", auth, async (req, res) => {
    APPLICATIONS
 ========================= */
 
+/*
+  MODULE 5 - APPLICATION DETAILS
+*/
+
+/* =========================
+   APPLICATIONS LIST
+========================= */
+
 app.get("/api/applications", auth, async (req, res) => {
   try {
-    const rows = await prisma.application.findMany({
-      where: { userId: req.user.id },
-      include: { job: true },
-      orderBy: { appliedAt: "desc" },
+    const applications = await prisma.application.findMany({
+      where: {
+        userId: req.user.id
+      },
+      include: {
+        job: true
+      },
+      orderBy: {
+        appliedAt: "desc"
+      }
     });
 
-    res.json(
-      rows.map((row) => ({
-        ...row,
-        job: row.job
-          ? {
-              ...row.job,
-              skills: row.job.skills
-                .split(",")
-                .map((skill) => skill.trim())
-                .filter(Boolean),
-            }
-          : null,
-      }))
-    );
+    res.json(applications);
+  } catch (error) {
+    console.error("Applications list error:", error);
+
+    res.status(500).json({
+      message: "Unable to load applications"
+    });
+  }
+});
+
+app.get("/api/applications/:id", auth, async (req, res) => {
+  try {
+    const applicationId = Number(req.params.id);
+
+    if (!Number.isInteger(applicationId) || applicationId <= 0) {
+      return res.status(400).json({
+        message: "Invalid application id",
+      });
+    }
+
+    const application = await prisma.application.findFirst({
+      where: {
+        id: applicationId,
+        userId: req.user.id,
+      },
+      include: {
+        job: true,
+        history: {
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        message: "Application not found",
+      });
+    }
+
+    res.json({
+      ...application,
+      job: application.job
+        ? {
+            ...application.job,
+            skills: application.job.skills
+              .split(",")
+              .map((skill) => skill.trim())
+              .filter(Boolean),
+          }
+        : null,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Unable to load applications" });
+    console.error("Application details error:", err);
+
+    res.status(500).json({
+      message: "Unable to load application details",
+    });
+  }
+});
+
+
+/*
+  MODULE 5 - APPLICATION STATUS UPDATE
+*/
+app.patch("/api/applications/:id/status", auth, async (req, res) => {
+  try {
+    const applicationId = Number(req.params.id);
+    const status = String(req.body.status || "").trim().toUpperCase();
+    const note = String(req.body.note || "").trim() || null;
+
+    const validStatuses = [
+      "APPLIED",
+      "UNDER_REVIEW",
+      "SHORTLISTED",
+      "INTERVIEW",
+      "SELECTED",
+      "REJECTED",
+    ];
+
+    if (!Number.isInteger(applicationId) || applicationId <= 0) {
+      return res.status(400).json({
+        message: "Invalid application id",
+      });
+    }
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        message: "Invalid application status",
+      });
+    }
+
+    const application = await prisma.application.findFirst({
+      where: {
+        id: applicationId,
+        userId: req.user.id,
+      },
+      include: {
+        job: true,
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        message: "Application not found",
+      });
+    }
+
+    if (application.status === status) {
+      const current = await prisma.application.findUnique({
+        where: { id: applicationId },
+        include: {
+          job: true,
+          history: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+        },
+      });
+
+      return res.json(current);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.application.update({
+        where: {
+          id: applicationId,
+        },
+        data: {
+          status,
+        },
+        include: {
+          job: true,
+          history: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+        },
+      });
+
+      await tx.applicationHistory.create({
+        data: {
+          applicationId,
+          status,
+          note,
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: req.user.id,
+          title: "Application status updated",
+          message:
+            `Your application for ${application.job.title} at ` +
+            `${application.job.company} is now ${status
+              .replaceAll("_", " ")
+              .toLowerCase()}.`,
+        },
+      });
+
+      return result;
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Application status update error:", err);
+
+    res.status(500).json({
+      message: "Unable to update application status",
+    });
   }
 });
 
@@ -532,7 +723,7 @@ app.post("/api/assistant/chat", auth, async (req, res) => {
       profile?.skills.map((skill) => skill.name).join(", ") ||
       "your current skills";
 
-    const reply = `Based on your profile, focus on opportunities matching ${skills}. For "${message}", I recommend tailoring your resume to the job description and preparing 2–3 project examples using the required technologies.`;
+    const reply = `Based on your profile, focus on opportunities matching ${skills}. For "${message}", I recommend tailoring your resume to the job description and preparing 2â€“3 project examples using the required technologies.`;
 
     res.json({ reply });
   } catch (err) {
@@ -549,3 +740,4 @@ app.use((err, _, res, __) => {
 app.listen(PORT, () => {
   console.log(`CareerConnect API running on http://localhost:${PORT}`);
 });
+

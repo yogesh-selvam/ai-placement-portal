@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 async function request(path, options = {}) {
   const token = localStorage.getItem("cc_token");
@@ -87,6 +87,20 @@ export const jobsApi = {
 export const applicationsApi = {
   getAll() {
     return request("/applications");
+  },
+
+  getById(id) {
+    return request(`/applications/${id}`);
+  },
+
+  updateStatus(id, status, note = "") {
+    return request(`/applications/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status,
+        note,
+      }),
+    });
   },
 };
 
