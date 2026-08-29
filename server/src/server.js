@@ -848,8 +848,217 @@ app.post("/api/interview/evaluate", auth, async (req, res) => {
 });
 
 
+/* =========================
+   MODULE 8 - AI CAREER INSIGHTS
+========================= */
+
+app.get("/api/career-insights", auth, async (req, res) => {
+  try {
+    const [profile, applications, jobs] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: req.user.id },
+        include: { skills: true, projects: true },
+      }),
+      prisma.application.findMany({
+        where: { userId: req.user.id },
+        include: { job: true },
+        orderBy: { appliedAt: "desc" },
+      }),
+      prisma.job.findMany({
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    const skillNames = profile.skills.map((s) => s.name.trim()).filter(Boolean);
+    const skillSet = new Set(skillNames.map((s) => s.toLowerCase()));
+
+    const statusCounts = {
+      APPLIED: 0,
+      UNDER_REVIEW: 0,
+      SHORTLISTED: 0,
+      INTERVIEW: 0,
+      SELECTED: 0,
+      REJECTED: 0,
+    };
+
+    applications.forEach((application) => {
+      statusCounts[application.status] =
+        (statusCounts[application.status] || 0) + 1;
+    });
+
+    const selectedCount = statusCounts.SELECTED;
+    const shortlistedCount = statusCounts.SHORTLISTED;
+    const interviewCount = statusCounts.INTERVIEW;
+    const activeCount =
+      statusCounts.APPLIED +
+      statusCounts.UNDER_REVIEW +
+      statusCounts.SHORTLISTED +
+      statusCounts.INTERVIEW;
+
+    const profileChecks = [
+      Boolean(profile.name),
+      Boolean(profile.degree),
+      Boolean(profile.university),
+      Boolean(profile.graduationYear),
+      Boolean(profile.gpa),
+      Boolean(profile.resumeUrl),
+      skillNames.length > 0,
+      profile.projects.length > 0,
+    ];
+    const profileScore = Math.round(
+      (profileChecks.filter(Boolean).length / profileChecks.length) * 100
+    );
+
+    const applicationScore = Math.min(100, applications.length * 20);
+    const engagementScore = Math.min(
+      100,
+      activeCount * 15 + shortlistedCount * 10 + interviewCount * 15
+    );
+    const successScore =
+      applications.length === 0
+        ? 0
+        : Math.min(
+            100,
+            Math.round(
+              ((selectedCount * 100 +
+                shortlistedCount * 65 +
+                interviewCount * 45 +
+                statusCounts.UNDER_REVIEW * 25) /
+                applications.length)
+            )
+          );
+
+    const readinessScore = Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round(
+          profileScore * 0.4 +
+            applicationScore * 0.2 +
+            engagementScore * 0.2 +
+            successScore * 0.2
+        )
+      )
+    );
+
+    const requiredSkillFrequency = new Map();
+    applications.forEach((application) => {
+      const skills = String(application.job?.skills || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      skills.forEach((skill) => {
+        const key = skill.toLowerCase();
+        if (!requiredSkillFrequency.has(key)) {
+          requiredSkillFrequency.set(key, { name: skill, count: 0 });
+        }
+        requiredSkillFrequency.get(key).count += 1;
+      });
+    });
+
+    const strongSkills = skillNames
+      .map((name) => ({
+        name,
+        demand: requiredSkillFrequency.get(name.toLowerCase())?.count || 0,
+      }))
+      .sort((a, b) => b.demand - a.demand);
+
+    const skillsToImprove = [...requiredSkillFrequency.values()]
+      .filter((skill) => !skillSet.has(skill.name.toLowerCase()))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6)
+      .map((skill) => skill.name);
+
+    const recommendedJobs = jobs
+      .map((job) => {
+        const required = String(job.skills || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        const matching = required.filter((skill) =>
+          skillSet.has(skill.toLowerCase())
+        );
+
+        const matchPercentage = required.length
+          ? Math.round((matching.length / required.length) * 100)
+          : 0;
+
+        return {
+          title: job.title,
+          company: job.company,
+          matchPercentage,
+          matchingSkills: matching,
+        };
+      })
+      .filter((job) => job.matchPercentage >= 50)
+      .sort((a, b) => b.matchPercentage - a.matchPercentage)
+      .slice(0, 3);
+
+    const recommendations = [];
+
+    if (profileScore < 100) {
+      recommendations.push(
+        "Complete your profile and keep your resume updated to improve recruiter readiness."
+      );
+    }
+
+    if (skillsToImprove.length) {
+      recommendations.push(
+        `Prioritize ${skillsToImprove.slice(0, 3).join(", ")} because these skills appear frequently in your applied jobs.`
+      );
+    }
+
+    if (applications.length === 0) {
+      recommendations.push(
+        "Start applying to relevant roles so your placement progress can be measured."
+      );
+    } else if (shortlistedCount + interviewCount === 0) {
+      recommendations.push(
+        "Tailor your resume and cover letter to each job's required skills before applying."
+      );
+    } else {
+      recommendations.push(
+        "Keep practicing interview questions for roles where you are shortlisted or invited to interview."
+      );
+    }
+
+    if (strongSkills.length) {
+      recommendations.push(
+        `Highlight ${strongSkills.slice(0, 3).map((skill) => skill.name).join(", ")} prominently in your resume and projects.`
+      );
+    }
+
+    res.json({
+      readinessScore,
+      profileScore,
+      applicationScore,
+      statusCounts,
+      totals: {
+        applications: applications.length,
+        active: activeCount,
+        shortlisted: shortlistedCount,
+        interviews: interviewCount,
+        selected: selectedCount,
+      },
+      strongSkills: strongSkills.slice(0, 8).map((skill) => skill.name),
+      skillsToImprove,
+      recommendations,
+      recommendedJobs,
+    });
+  } catch (err) {
+    console.error("Career insights error:", err);
+    res.status(500).json({ message: "Unable to load career insights" });
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`CareerConnect API running on http://localhost:${PORT}`);
 });
-
 

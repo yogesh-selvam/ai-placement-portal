@@ -44,6 +44,7 @@ function Header({ page, setPage, onProfile }) {
         ["applications","Applications"],
         ["saved-jobs","Saved Jobs"],
         ["notifications","Notifications"],
+        ["career-insights","Career Insights"],
       ].map(([key,label]) =>
         <button key={key} className={page===key ? "nav active" : "nav"} onClick={()=>setPage(key)}>
           {label}
@@ -874,6 +875,189 @@ function InterviewPrep({setPage}) {
     </Layout>
   );
 }
+
+
+function CareerInsights({ setPage }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadInsights() {
+      try {
+        setLoading(true);
+        setError("");
+        const result = await careerInsightsApi.get();
+        if (active) setData(result);
+      } catch (err) {
+        if (active) setError(err.message || "Unable to load career insights.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadInsights();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const statusLabels = [
+    ["APPLIED", "Applied"],
+    ["UNDER_REVIEW", "Under Review"],
+    ["SHORTLISTED", "Shortlisted"],
+    ["INTERVIEW", "Interview"],
+    ["SELECTED", "Selected"],
+    ["REJECTED", "Rejected"],
+  ];
+
+  if (loading) {
+    return (
+      <Layout page="career-insights" setPage={setPage} onProfile={() => setPage("profile")}>
+        <main className="container insights-page">
+          <div className="insights-loading">
+            <BarChart3 size={42} />
+            <h2>Loading your career insights...</h2>
+            <p>We're analyzing your profile, skills, and application progress.</p>
+          </div>
+        </main>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout page="career-insights" setPage={setPage} onProfile={() => setPage("profile")}>
+        <main className="container insights-page">
+          <div className="auth-error">{error}</div>
+          <button className="primary" onClick={() => window.location.reload()}>
+            Try Again
+          </button>
+        </main>
+      </Layout>
+    );
+  }
+
+  const score = Number(data?.readinessScore || 0);
+  const scoreLabel =
+    score >= 80 ? "Excellent readiness" :
+    score >= 60 ? "Good progress" :
+    score >= 40 ? "Keep building" :
+    "Getting started";
+
+  return (
+    <Layout page="career-insights" setPage={setPage} onProfile={() => setPage("profile")}>
+      <main className="container insights-page">
+        <div className="insights-hero">
+          <div>
+            <span className="eyebrow"><Sparkles size={15}/> AI CAREER INSIGHTS</span>
+            <h1>Your placement progress, at a glance.</h1>
+            <p>Use your application activity, profile completeness, and skills to focus your next career move.</p>
+          </div>
+          <div className="readiness-card">
+            <div className="readiness-ring" style={{ "--score": `${score * 3.6}deg` }}>
+              <div>
+                <strong>{score}</strong>
+                <span>/100</span>
+              </div>
+            </div>
+            <b>{scoreLabel}</b>
+            <small>Profile & placement readiness</small>
+          </div>
+        </div>
+
+        <section className="insight-stats">
+          <div className="insight-stat"><FileText/><span>Applications</span><strong>{data.totals.applications}</strong></div>
+          <div className="insight-stat"><UsersRound/><span>Shortlisted</span><strong>{data.totals.shortlisted}</strong></div>
+          <div className="insight-stat"><Video/><span>Interviews</span><strong>{data.totals.interviews}</strong></div>
+          <div className="insight-stat"><CheckCircle2/><span>Selected</span><strong>{data.totals.selected}</strong></div>
+        </section>
+
+        <div className="insights-grid">
+          <section className="insight-panel">
+            <div className="panel-heading">
+              <div><BarChart3/><div><h2>Application Overview</h2><p>Where your applications stand right now.</p></div></div>
+            </div>
+            <div className="status-bars">
+              {statusLabels.map(([key, label]) => {
+                const value = data.statusCounts?.[key] || 0;
+                const max = Math.max(1, data.totals.applications);
+                return (
+                  <div className="status-row" key={key}>
+                    <span>{label}</span>
+                    <div className="status-track"><i style={{ width: `${Math.min(100, (value / max) * 100)}%` }}/></div>
+                    <strong>{value}</strong>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="insight-panel">
+            <div className="panel-heading">
+              <div><Code2/><div><h2>Your Strong Skills</h2><p>Skills you can highlight with confidence.</p></div></div>
+            </div>
+            {data.strongSkills?.length ? (
+              <div className="insight-chips">{data.strongSkills.map(skill => <span key={skill}>{skill}</span>)}</div>
+            ) : (
+              <div className="insight-empty">Add technical skills to your profile to see your strengths.</div>
+            )}
+          </section>
+
+          <section className="insight-panel">
+            <div className="panel-heading">
+              <div><TrendingUp/><div><h2>Skills to Improve</h2><p>Frequently requested skills you don't list yet.</p></div></div>
+            </div>
+            {data.skillsToImprove?.length ? (
+              <div className="improve-list">
+                {data.skillsToImprove.map((skill, index) => (
+                  <div key={skill}><span>{index + 1}</span><b>{skill}</b><small>High relevance</small></div>
+                ))}
+              </div>
+            ) : (
+              <div className="insight-empty">No major skill gaps found from your current applications.</div>
+            )}
+          </section>
+
+          <section className="insight-panel recommendations-panel">
+            <div className="panel-heading">
+              <div><Sparkles/><div><h2>AI Career Recommendations</h2><p>Practical next steps based on your current activity.</p></div></div>
+            </div>
+            <div className="recommendation-list">
+              {(data.recommendations || []).map((item, index) => (
+                <div key={index}><CheckCircle2/><p>{item}</p></div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {data.recommendedJobs?.length > 0 && (
+          <section className="insight-panel insight-jobs">
+            <div className="panel-heading">
+              <div><Star/><div><h2>Best Matching Opportunities</h2><p>Roles from your job pool with at least 50% skill alignment.</p></div></div>
+              <button className="secondary" onClick={() => setPage("jobs")}>View Jobs <ArrowRight size={16}/></button>
+            </div>
+            <div className="insight-job-grid">
+              {data.recommendedJobs.map(job => (
+                <div className="insight-job" key={`${job.company}-${job.title}`}>
+                  <div><b>{job.title}</b><span>{job.company}</span></div>
+                  <strong>{job.matchPercentage}% Match</strong>
+                  <div className="insight-job-skills">
+                    {job.matchingSkills.slice(0, 4).map(skill => <span key={skill}>{skill}</span>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
+    </Layout>
+  );
+}
+
 
 
 function Applications({ setPage }) {
@@ -2435,6 +2619,7 @@ function App() {
     );
   }
 
+  if (page === "career-insights") return <CareerInsights setPage={setPage}/>;
   if (page === "notifications") {
     return <Notifications setPage={setPage} />;
   }

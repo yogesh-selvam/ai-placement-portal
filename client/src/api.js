@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "";
+﻿const API_URL = import.meta.env.VITE_API_URL || "";
 
 async function request(path, options = {}) {
   const token = localStorage.getItem("cc_token");
@@ -184,6 +184,16 @@ export const interviewApi = {
    HEALTH CHECK
 ========================= */
 
+
+/* =========================
+   MODULE 8 - CAREER INSIGHTS API
+========================= */
+
+export const careerInsightsApi = {
+  get() {
+    return request("/career-insights");
+  },
+};
 export const healthApi = {
   check() {
     return request("/health");
