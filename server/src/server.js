@@ -737,7 +737,119 @@ app.use((err, _, res, __) => {
   res.status(500).json({ message: "Internal server error" });
 });
 
+app.get("/api/interview/questions", auth, async (req, res) => {
+  try {
+    const jobId = Number(req.query.jobId);
+    if (!Number.isInteger(jobId) || jobId <= 0) {
+      return res.status(400).json({ message: "A valid jobId is required" });
+    }
+
+    const application = await prisma.application.findFirst({
+      where: { userId: req.user.id, jobId },
+      include: { job: true },
+    });
+
+    if (!application) {
+      return res.status(403).json({ message: "You can practice only for jobs you have applied to" });
+    }
+
+    const jobSkills = String(application.job.skills || "")
+      .split(",")
+      .map(skill => skill.trim())
+      .filter(Boolean);
+    const skills = jobSkills.slice(0, 4).join(", ");
+    const index = Math.floor(Date.now() / 1000) % INTERVIEW_QUESTION_TEMPLATES.length;
+    const template = INTERVIEW_QUESTION_TEMPLATES[index];
+
+    res.json({
+      id: `${application.job.id}-${index}`,
+      number: index + 1,
+      category: template.category,
+      text: template.build(application.job, skills),
+      job: {
+        id: application.job.id,
+        title: application.job.title,
+        company: application.job.company,
+      },
+    });
+  } catch (err) {
+    console.error("Interview question error:", err);
+    res.status(500).json({ message: "Unable to generate interview question" });
+  }
+});
+
+app.post("/api/interview/evaluate", auth, async (req, res) => {
+  try {
+    const jobId = Number(req.body.jobId);
+    const answer = String(req.body.answer || "").trim();
+
+    if (!Number.isInteger(jobId) || jobId <= 0 || answer.length < 20) {
+      return res.status(400).json({ message: "Please provide a valid job and an answer of at least 20 characters" });
+    }
+
+    const application = await prisma.application.findFirst({
+      where: { userId: req.user.id, jobId },
+      include: { job: true },
+    });
+
+    if (!application) {
+      return res.status(403).json({ message: "You can evaluate answers only for jobs you have applied to" });
+    }
+
+    const lower = answer.toLowerCase();
+    const words = answer.split(/\s+/).filter(Boolean).length;
+    const jobSkills = String(application.job.skills || "")
+      .split(",")
+      .map(skill => skill.trim())
+      .filter(Boolean);
+    const mentionedSkills = jobSkills.filter(skill => lower.includes(skill.toLowerCase()));
+    const hasExample = /(project|example|built|developed|implemented|created|experience)/i.test(answer);
+    const hasStructure = /(situation|task|action|result|because|therefore|first|then|finally)/i.test(answer);
+    const hasOutcome = /(result|improved|reduced|increased|saved|achieved|performance|users|%)/i.test(answer);
+
+    let score = 35;
+    if (words >= 45) score += 15;
+    if (words >= 80) score += 10;
+    if (mentionedSkills.length > 0) score += 12;
+    if (mentionedSkills.length >= 2) score += 8;
+    if (hasExample) score += 7;
+    if (hasStructure) score += 7;
+    if (hasOutcome) score += 6;
+    score = Math.min(100, score);
+
+    const strengths = [];
+    const improvements = [];
+
+    if (words >= 45) strengths.push("Your answer has enough detail to start a strong interview discussion.");
+    else improvements.push("Add more detail: explain your reasoning instead of giving only a short summary.");
+
+    if (mentionedSkills.length) strengths.push(`You connected your answer to ${mentionedSkills.slice(0, 3).join(", ")}.`);
+    else improvements.push(`Mention at least one relevant technology or skill from the role, such as ${jobSkills.slice(0, 3).join(", ") || "the required skills"}.`);
+
+    if (hasExample) strengths.push("You used experience or a concrete example, which makes the answer more credible.");
+    else improvements.push("Include one real project or experience example and clearly describe what you personally did.");
+
+    if (hasOutcome) strengths.push("You included an outcome or impact rather than stopping at the implementation.");
+    else improvements.push("Finish with a measurable result, learning, or impact from your work.");
+
+    if (hasStructure) strengths.push("Your answer shows a logical sequence of events or actions.");
+    else improvements.push("Use a simple Situation â†’ Task â†’ Action â†’ Result structure for a clearer answer.");
+
+    if (!strengths.length) strengths.push("You addressed the question and have a good base to improve from.");
+    if (!improvements.length) improvements.push("Keep the answer concise and be ready to explain any technical detail you mention.");
+
+    const betterAnswer = `Start with the context, explain the exact problem or responsibility, describe the actions you personally took using ${mentionedSkills.slice(0, 2).join(" and ") || "the relevant technologies"}, then finish with the result and what you learned.`;
+
+    res.json({ score, strengths, improvements, betterAnswer });
+  } catch (err) {
+    console.error("Interview evaluation error:", err);
+    res.status(500).json({ message: "Unable to evaluate interview answer" });
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`CareerConnect API running on http://localhost:${PORT}`);
 });
+
 

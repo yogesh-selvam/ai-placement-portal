@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Search, UserCircle, Bookmark, FileText, UsersRound, Video,
@@ -58,7 +58,7 @@ function Header({ page, setPage, onProfile }) {
   </header>
 }
 
-function Footer(){ return <footer><b>CareerConnect AI</b><span>© 2024 CareerConnect AI. All rights reserved.</span><div><span>Privacy Policy</span><span>Terms of Service</span><span>Support</span></div></footer> }
+function Footer(){ return <footer><b>CareerConnect AI</b><span>Â© 2024 CareerConnect AI. All rights reserved.</span><div><span>Privacy Policy</span><span>Terms of Service</span><span>Support</span></div></footer> }
 
 function AIButton({open,onClick}) { return <button className="ai-fab" onClick={onClick} title="CareerConnect AI Assistant">{open ? <X/> : <Sparkles/>}</button> }
 
@@ -192,7 +192,7 @@ function Login({onLogin}) {
       <div className="login-brand">CareerConnect AI</div>
       <p>Your career. Your opportunities. Your future.</p>
       <div className="login-visual"><div className="visual-card"><Sparkles size={38}/><strong>AI-powered career matching</strong><span>Discover opportunities built around your skills.</span></div></div>
-      <small>© 2024 CareerConnect AI. All rights reserved.</small>
+      <small>Â© 2024 CareerConnect AI. All rights reserved.</small>
     </section>
     <section className="login-right">
       <div className="login-card">
@@ -296,7 +296,7 @@ function Home({setPage, user, setSelectedJob}) {
     <main className="container home">
       <div className="hero-row">
         <div>
-          <h1>Good morning, {profile?.name || user?.name || "there"} 👋</h1>
+          <h1>Good morning, {profile?.name || user?.name || "there"} ðŸ‘‹</h1>
           <p>Let's find your next great opportunity.</p>
         </div>
         <div className="completion">
@@ -320,10 +320,10 @@ function Home({setPage, user, setSelectedJob}) {
       </div>
 
       <div className="stats">
-        <Stat icon={<FileText/>} title="Applications" value={loading ? "—" : applications.length}/>
-        <Stat icon={<UsersRound/>} title="Shortlisted" value={loading ? "—" : shortlisted}/>
-        <Stat icon={<Video/>} title="Interviews" value={loading ? "—" : interviews} active/>
-        <Stat icon={<Bookmark/>} title="Saved" value={loading ? "—" : new Set(savedJobs.map(savedJobId).filter(Number.isFinite)).size}/>
+        <Stat icon={<FileText/>} title="Applications" value={loading ? "â€”" : applications.length}/>
+        <Stat icon={<UsersRound/>} title="Shortlisted" value={loading ? "â€”" : shortlisted}/>
+        <Stat icon={<Video/>} title="Interviews" value={loading ? "â€”" : interviews} active/>
+        <Stat icon={<Bookmark/>} title="Saved" value={loading ? "â€”" : new Set(savedJobs.map(savedJobId).filter(Number.isFinite)).size}/>
       </div>
 
       <div className="section-title">
@@ -408,7 +408,7 @@ function JobCard({job,compact=false,onView,initialSaved=false,onSavedChange}) {
       </button>
     </div>
     <h3>{job.title}</h3>
-    <p className="company">{job.company} • {job.location}</p>
+    <p className="company">{job.company} â€¢ {job.location}</p>
     <div className="chips">{skills.map(s=><span key={s}>{s}</span>)}</div>
     <div className="job-bottom">
       <b>{job.salary || "Salary not specified"}</b>
@@ -524,7 +524,7 @@ function Jobs({setPage, setSelectedJob}) {
               <div className="job-icon"><BriefcaseBusiness/></div>
               <div className="list-main">
                 <h3>{j.title}</h3>
-                <p>{j.company} • {j.location}</p>
+                <p>{j.company} â€¢ {j.location}</p>
                 <div className="chips">
                   {(Array.isArray(j.skills) ? j.skills : []).map(s=><span key={s}>{s}</span>)}
                 </div>
@@ -623,7 +623,7 @@ function JobDetail({setPage, job, refreshApplications}) {
   return <Layout page="jobs" setPage={setPage} onProfile={()=>setPage("profile")}>
     <main className="container detail">
       <div className="breadcrumb">
-        Jobs <span>›</span> {job.title}
+        Jobs <span>â€º</span> {job.title}
       </div>
 
       {error && <div className="auth-error">{error}</div>}
@@ -645,7 +645,7 @@ function JobDetail({setPage, job, refreshApplications}) {
             {saving ? "Saving..." : saved ? "Saved" : "Save Job"}
           </button>
           <button className="primary" onClick={apply} disabled={loading || applied}>
-            {loading ? "Applying..." : applied ? "Applied ✓" : "Apply Now"}
+            {loading ? "Applying..." : applied ? "Applied âœ“" : "Apply Now"}
           </button>
         </div>
       </div>
@@ -698,6 +698,183 @@ function JobDetail({setPage, job, refreshApplications}) {
     </main>
   </Layout>
 }
+
+function InterviewPrep({setPage}) {
+  const [applications, setApplications] = useState([]);
+  const [jobId, setJobId] = useState("");
+  const [question, setQuestion] = useState(null);
+  const [answer, setAnswer] = useState("");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
+  const [error, setError] = useState("");
+
+  async function loadApplications() {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await applicationsApi.getAll();
+      const rows = Array.isArray(data) ? data : [];
+      setApplications(rows);
+      if (!jobId && rows[0]?.job?.id) setJobId(String(rows[0].job.id));
+    } catch (err) {
+      setError(err.message || "Unable to load your applications.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadApplications(); }, []);
+
+  async function generateQuestion() {
+    if (!jobId) return;
+    try {
+      setGenerating(true);
+      setError("");
+      setResult(null);
+      setAnswer("");
+      const data = await interviewApi.getQuestion(jobId);
+      setQuestion(data);
+    } catch (err) {
+      setError(err.message || "Unable to generate interview question.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function evaluateAnswer() {
+    if (!question || !answer.trim()) return;
+    try {
+      setEvaluating(true);
+      setError("");
+      const data = await interviewApi.evaluate({
+        jobId: Number(jobId),
+        questionId: question.id,
+        answer: answer.trim(),
+      });
+      setResult(data);
+    } catch (err) {
+      setError(err.message || "Unable to evaluate your answer.");
+    } finally {
+      setEvaluating(false);
+    }
+  }
+
+  const selectedApplication = applications.find(a => Number(a.job?.id) === Number(jobId));
+  const job = selectedApplication?.job;
+
+  return (
+    <Layout page="interview-prep" setPage={setPage} onProfile={() => setPage("profile")}>
+      <main className="container interview-page">
+        <div className="interview-hero">
+          <div>
+            <div className="eyebrow"><Sparkles size={16}/> MODULE 7</div>
+            <h1>AI Interview Preparation</h1>
+            <p>Practice role-specific questions and get instant feedback on your answers.</p>
+          </div>
+          <div className="interview-hero-icon"><ClipboardCheck size={34}/></div>
+        </div>
+
+        {error && <div className="auth-error">{error}</div>}
+
+        {loading ? (
+          <div className="empty-state"><p>Loading your applied jobs...</p></div>
+        ) : applications.length === 0 ? (
+          <div className="empty-state">
+            <ClipboardCheck size={42}/>
+            <h2>Apply to a job first</h2>
+            <p>Your interview practice questions are generated from jobs you have applied to.</p>
+            <button className="primary" onClick={() => setPage("jobs")}>Browse Jobs</button>
+          </div>
+        ) : (
+          <>
+            <section className="interview-card">
+              <div className="interview-card-head">
+                <div>
+                  <h2>Choose an applied role</h2>
+                  <p>Select a job and generate a practice question.</p>
+                </div>
+                <span className="interview-badge"><Sparkles size={15}/> AI Practice</span>
+              </div>
+
+              <div className="interview-controls">
+                <select value={jobId} onChange={e => { setJobId(e.target.value); setQuestion(null); setResult(null); setAnswer(""); }}>
+                  {applications.map(a => (
+                    <option key={a.id} value={a.job?.id}>
+                      {a.job?.title || "Job"} â€” {a.job?.company || "Company"}
+                    </option>
+                  ))}
+                </select>
+                <button className="primary" onClick={generateQuestion} disabled={generating}>
+                  {generating ? "Generating..." : "Generate Question"} <Sparkles size={17}/>
+                </button>
+              </div>
+
+              {job && (
+                <div className="interview-job-summary">
+                  <strong>{job.title}</strong>
+                  <span>{job.company} â€¢ {job.location}</span>
+                  <div className="chips">
+                    {(Array.isArray(job.skills) ? job.skills : String(job.skills || "").split(",").map(s => s.trim()).filter(Boolean)).slice(0, 6).map(skill => <span key={skill}>{skill}</span>)}
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {question && (
+              <section className="interview-card question-card">
+                <div className="question-meta">
+                  <span>{question.category}</span>
+                  <span>Question {question.number}</span>
+                </div>
+                <h2>{question.text}</h2>
+                <p className="question-hint">Keep your answer specific. Mention your approach, tools, and a real example where possible.</p>
+                <textarea
+                  value={answer}
+                  onChange={e => setAnswer(e.target.value)}
+                  placeholder="Type your interview answer here..."
+                  rows={8}
+                />
+                <div className="answer-actions">
+                  <span>{answer.trim().length} characters</span>
+                  <button className="primary" onClick={evaluateAnswer} disabled={evaluating || answer.trim().length < 20}>
+                    {evaluating ? "Evaluating..." : "Evaluate My Answer"} <CheckCircle2 size={17}/>
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {result && (
+              <section className="interview-card result-card">
+                <div className="result-top">
+                  <div>
+                    <span className="result-label">AI FEEDBACK</span>
+                    <h2>Your score</h2>
+                  </div>
+                  <div className="score-circle"><strong>{result.score}</strong><span>/100</span></div>
+                </div>
+
+                <div className="feedback-grid">
+                  <div><h3>Strengths</h3><ul>{result.strengths.map((item, i) => <li key={i}>{item}</li>)}</ul></div>
+                  <div><h3>Improve next</h3><ul>{result.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul></div>
+                </div>
+
+                <div className="model-answer">
+                  <h3>Better answer structure</h3>
+                  <p>{result.betterAnswer}</p>
+                </div>
+
+                <button className="secondary" onClick={generateQuestion}>Practice Another Question <ArrowRight size={17}/></button>
+              </section>
+            )}
+          </>
+        )}
+      </main>
+    </Layout>
+  );
+}
+
 
 function Applications({ setPage }) {
   const [tab, setTab] = useState("All Applications");
@@ -936,7 +1113,7 @@ function Applications({ setPage }) {
 
                     <p>
                       {application.job?.company || "Company"}
-                      {" • "}
+                      {" â€¢ "}
                       {application.job?.location || "Location not available"}
                     </p>
 
@@ -1678,8 +1855,8 @@ function Profile({setPage}) {
                 </div>
 
                 <div>
-                  <small>Class of {form.graduationYear || "—"}</small>
-                  <b>GPA: {form.gpa || "—"}</b>
+                  <small>Class of {form.graduationYear || "â€”"}</small>
+                  <b>GPA: {form.gpa || "â€”"}</b>
                 </div>
               </div>
             )}
@@ -1704,7 +1881,7 @@ function Profile({setPage}) {
                         onClick={() => removeSkill(skill)}
                         title={`Remove ${skill}`}
                       >
-                        ×
+                        Ã—
                       </button>
                     )}
                   </span>
@@ -1981,7 +2158,7 @@ function SavedJobs({setPage,setSelectedJob}) {
 
               <div className="list-main">
                 <h3>{job.title}</h3>
-                <p>{job.company} • {job.location}</p>
+                <p>{job.company} â€¢ {job.location}</p>
                 <div className="chips">
                   {skills.map(skill => <span key={skill}>{skill}</span>)}
                 </div>

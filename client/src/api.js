@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 async function request(path, options = {}) {
   const token = localStorage.getItem("cc_token");
@@ -78,6 +78,10 @@ export const jobsApi = {
       body: JSON.stringify({ coverLetter }),
     });
   },
+
+  getRecommended() {
+    return request("/jobs/recommended");
+  },
 };
 
 /* =========================
@@ -87,20 +91,6 @@ export const jobsApi = {
 export const applicationsApi = {
   getAll() {
     return request("/applications");
-  },
-
-  getById(id) {
-    return request(`/applications/${id}`);
-  },
-
-  updateStatus(id, status, note = "") {
-    return request(`/applications/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status,
-        note,
-      }),
-    });
   },
 };
 
@@ -169,6 +159,23 @@ export const assistantApi = {
     return request("/assistant/chat", {
       method: "POST",
       body: JSON.stringify({ message }),
+    });
+  },
+};
+
+/* =========================
+   MODULE 7 - INTERVIEW PREP API
+========================= */
+
+export const interviewApi = {
+  getQuestion(jobId) {
+    return request(`/interview/questions?jobId=${encodeURIComponent(jobId)}`);
+  },
+
+  evaluate(payload) {
+    return request("/interview/evaluate", {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   },
 };
