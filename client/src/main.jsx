@@ -14,9 +14,22 @@ import {
   jobsApi,
   applicationsApi,
   profileApi,
+  savedJobsApi,
   notificationsApi,
   assistantApi,
-} from "./api.js";
+ } from "./api.js";
+
+function normalizeSavedJobs(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.savedJobs)) return data.savedJobs;
+  if (Array.isArray(data?.rows)) return data.rows;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+function savedJobId(item) {
+  return Number(item?.jobId ?? item?.job?.id ?? item?.id);
+}
 
 
 
@@ -25,9 +38,15 @@ function Header({ page, setPage, onProfile }) {
   return <header className="header">
     <div className="brand" onClick={()=>setPage("home")}>CareerConnect AI</div>
     <nav>
-      {["home","jobs","applications","notifications"].map(p =>
-        <button key={p} className={page===p ? "nav active" : "nav"} onClick={()=>setPage(p)}>
-          {p[0].toUpperCase()+p.slice(1)}
+      {[
+        ["home","Home"],
+        ["jobs","Jobs"],
+        ["applications","Applications"],
+        ["saved-jobs","Saved Jobs"],
+        ["notifications","Notifications"],
+      ].map(([key,label]) =>
+        <button key={key} className={page===key ? "nav active" : "nav"} onClick={()=>setPage(key)}>
+          {label}
         </button>
       )}
     </nav>
@@ -208,10 +227,11 @@ function Login({onLogin}) {
   </div>;
 }
 
-function Home({setPage, user}) {
+function Home({setPage, user, setSelectedJob}) {
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
   const [profile, setProfile] = useState(null);
+  const [savedJobs, setSavedJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -222,16 +242,18 @@ function Home({setPage, user}) {
       try {
         setLoading(true);
         setError("");
-        const [jobsData, applicationsData, profileData] = await Promise.all([
+        const [jobsData, applicationsData, profileData, savedJobsData] = await Promise.all([
           jobsApi.getAll(),
           applicationsApi.getAll(),
           profileApi.get(),
+          savedJobsApi.getAll(),
         ]);
 
         if (!active) return;
         setJobs(Array.isArray(jobsData) ? jobsData : []);
         setApplications(Array.isArray(applicationsData) ? applicationsData : []);
         setProfile(profileData);
+        setSavedJobs(normalizeSavedJobs(savedJobsData));
       } catch (err) {
         if (active) setError(err.message || "Unable to load dashboard.");
       } finally {
@@ -240,7 +262,17 @@ function Home({setPage, user}) {
     }
 
     loadDashboard();
-    return () => { active = false; };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") loadDashboard();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   const shortlisted = applications.filter(a => a.status === "SHORTLISTED").length;
@@ -291,7 +323,7 @@ function Home({setPage, user}) {
         <Stat icon={<FileText/>} title="Applications" value={loading ? "—" : applications.length}/>
         <Stat icon={<UsersRound/>} title="Shortlisted" value={loading ? "—" : shortlisted}/>
         <Stat icon={<Video/>} title="Interviews" value={loading ? "—" : interviews} active/>
-        <Stat icon={<Bookmark/>} title="Saved" value="0"/>
+        <Stat icon={<Bookmark/>} title="Saved" value={loading ? "—" : new Set(savedJobs.map(savedJobId).filter(Number.isFinite)).size}/>
       </div>
 
       <div className="section-title">
@@ -306,7 +338,21 @@ function Home({setPage, user}) {
       ) : (
         <div className="job-grid">
           {jobs.slice(0, 2).map(j =>
-            <JobCard key={j.id} job={j} compact onView={()=>setPage("job-detail", j.id)}/>
+            <JobCard
+              key={j.id}
+              job={j}
+              compact
+              initialSaved={savedJobs.some(item => savedJobId(item) === Number(j.id))}
+              onView={() => {
+                setSelectedJob?.(j);
+                setPage("job-detail");
+              }}
+              onSavedChange={(saved) => setSavedJobs(prev =>
+                saved
+                  ? [...prev, { jobId: j.id, job: j }]
+                  : prev.filter(item => savedJobId(item) !== Number(j.id))
+              )}
+            />
           )}
         </div>
       )}
@@ -315,15 +361,49 @@ function Home({setPage, user}) {
 }
 function Stat({icon,title,value,active}) { return <div className={"stat "+(active?"stat-active":"")}><div className="stat-label">{icon}{title}</div><strong>{value}</strong></div> }
 
-function JobCard({job,compact=false,onView}) {
-  const [saved,setSaved]=useState(false);
+function JobCard({job,compact=false,onView,initialSaved=false,onSavedChange}) {
+  const [saved,setSaved]=useState(!!initialSaved);
+  const [saving,setSaving]=useState(false);
   const Icon=job.icon || BriefcaseBusiness;
   const skills = Array.isArray(job.skills) ? job.skills : [];
+
+  useEffect(() => {
+    setSaved(!!initialSaved);
+  }, [initialSaved]);
+
+  async function toggleSaved() {
+    if (saving) return;
+
+    try {
+      setSaving(true);
+
+      if (saved) {
+        await savedJobsApi.remove(job.id);
+        setSaved(false);
+        onSavedChange?.(false);
+      } else {
+        await savedJobsApi.save(job.id);
+        setSaved(true);
+        onSavedChange?.(true);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Unable to update saved job.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return <article className={"job-card "+(compact?"compact":"")}>
     <div className="job-top">
       <div className="job-icon"><Icon size={26}/></div>
-      <button className={"bookmark "+(saved?"saved":"")} onClick={()=>setSaved(!saved)}>
+      <button
+        className={"bookmark "+(saved?"saved":"")}
+        onClick={toggleSaved}
+        disabled={saving}
+        title={saved ? "Remove from saved jobs" : "Save job"}
+        aria-label={saved ? "Remove from saved jobs" : "Save job"}
+      >
         <Bookmark fill={saved?"currentColor":"none"}/>
       </button>
     </div>
@@ -344,13 +424,18 @@ function Jobs({setPage, setSelectedJob}) {
   const [type,setType]=useState("");
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
+  const [savedJobs,setSavedJobs]=useState([]);
 
   async function loadJobs(filters = {}) {
     try {
       setLoading(true);
       setError("");
-      const data = await jobsApi.getAll(filters);
+      const [data, savedData] = await Promise.all([
+        jobsApi.getAll(filters),
+        savedJobsApi.getAll(),
+      ]);
       setJobs(Array.isArray(data) ? data : []);
+      setSavedJobs(normalizeSavedJobs(savedData));
     } catch (err) {
       setError(err.message || "Unable to load jobs.");
     } finally {
@@ -444,7 +529,27 @@ function Jobs({setPage, setSelectedJob}) {
                   {(Array.isArray(j.skills) ? j.skills : []).map(s=><span key={s}>{s}</span>)}
                 </div>
               </div>
-              <Bookmark className="list-bookmark"/>
+              <button
+                className={"list-bookmark "+(savedJobs.some(item => savedJobId(item) === Number(j.id)) ? "saved" : "")}
+                onClick={async () => {
+                  const isSaved = savedJobs.some(item => savedJobId(item) === Number(j.id));
+                  try {
+                    if (isSaved) {
+                      await savedJobsApi.remove(j.id);
+                      setSavedJobs(prev => prev.filter(item => savedJobId(item) !== Number(j.id)));
+                    } else {
+                      await savedJobsApi.save(j.id);
+                      setSavedJobs(prev => [...prev, { jobId: j.id, job: j }]);
+                    }
+                  } catch (err) {
+                    setError(err.message || "Unable to update saved job.");
+                  }
+                }}
+                title={savedJobs.some(item => savedJobId(item) === Number(j.id)) ? "Remove saved job" : "Save job"}
+                aria-label={savedJobs.some(item => savedJobId(item) === Number(j.id)) ? "Remove saved job" : "Save job"}
+              >
+                <Bookmark fill={savedJobs.some(item => savedJobId(item) === Number(j.id)) ? "currentColor" : "none"}/>
+              </button>
               <div className="list-bottom">
                 <b>{j.salary || "Salary not specified"}</b>
                 <div>
@@ -465,6 +570,15 @@ function JobDetail({setPage, job, refreshApplications}) {
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
   const [applied,setApplied]=useState(false);
+  const [saved,setSaved]=useState(false);
+  const [saving,setSaving]=useState(false);
+
+  useEffect(() => {
+    if (!job) return;
+    savedJobsApi.getAll()
+      .then(data => setSaved(normalizeSavedJobs(data).some(item => savedJobId(item) === Number(job.id))))
+      .catch(() => {});
+  }, [job]);
 
   if (!job) {
     return <Layout page="jobs" setPage={setPage} onProfile={()=>setPage("profile")}>
@@ -473,6 +587,23 @@ function JobDetail({setPage, job, refreshApplications}) {
         <button className="primary" onClick={()=>setPage("jobs")}>Back to Jobs</button>
       </main>
     </Layout>;
+  }
+
+  async function toggleSaved() {
+    try {
+      setSaving(true);
+      if (saved) {
+        await savedJobsApi.remove(job.id);
+        setSaved(false);
+      } else {
+        await savedJobsApi.save(job.id);
+        setSaved(true);
+      }
+    } catch (err) {
+      setError(err.message || "Unable to update saved job.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function apply() {
@@ -509,7 +640,10 @@ function JobDetail({setPage, job, refreshApplications}) {
           </p>
         </div>
         <div className="detail-actions">
-          <button className="secondary">🔖 Save Job</button>
+          <button className={"secondary "+(saved ? "saved-action" : "")} onClick={toggleSaved} disabled={saving}>
+            <Bookmark size={17} fill={saved ? "currentColor" : "none"}/>
+            {saving ? "Saving..." : saved ? "Saved" : "Save Job"}
+          </button>
           <button className="primary" onClick={apply} disabled={loading || applied}>
             {loading ? "Applying..." : applied ? "Applied ✓" : "Apply Now"}
           </button>
@@ -576,7 +710,7 @@ function Applications({setPage}) {
       setLoading(true);
       setError("");
       const data = await applicationsApi.getAll();
-      setRows(Array.isArray(data) ? data : []);
+      setRows(normalizeSavedJobs(data));
     } catch (err) {
       setError(err.message || "Unable to load applications.");
     } finally {
@@ -1119,6 +1253,109 @@ function Profile({setPage}) {
 function Panel({title,icon,children}){return <section className="panel"><h2>{icon}{title}<Pencil size={18}/></h2>{children}</section>}
 function Project({title,text}){return <div className="project"><b>{title}</b><p>{text}</p><a><Link2 size={14}/> View Project</a></div>}
 
+function SavedJobs({setPage,setSelectedJob}) {
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+
+  async function loadSavedJobs() {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await savedJobsApi.getAll();
+      setRows(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || "Unable to load saved jobs.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadSavedJobs();
+  }, []);
+
+  async function removeSaved(jobId) {
+    try {
+      await savedJobsApi.remove(jobId);
+      setRows(prev => prev.filter(item => savedJobId(item) !== Number(jobId)));
+    } catch (err) {
+      setError(err.message || "Unable to remove saved job.");
+    }
+  }
+
+  function openJob(job) {
+    setSelectedJob(job);
+    setPage("job-detail");
+  }
+
+  return <Layout page="saved-jobs" setPage={setPage} onProfile={()=>setPage("profile")}>
+    <main className="container jobs-page">
+      <div className="page-heading">
+        <div>
+          <h1>Saved Jobs</h1>
+          <p>Keep track of opportunities you want to revisit.</p>
+        </div>
+        <button className="primary" onClick={()=>setPage("jobs")}>
+          Browse More Jobs <ArrowRight size={17}/>
+        </button>
+      </div>
+
+      {error && <div className="auth-error">{error}</div>}
+
+      {loading ? (
+        <p>Loading saved jobs...</p>
+      ) : rows.length === 0 ? (
+        <div className="empty-state">
+          <Bookmark size={42}/>
+          <h2>No saved jobs yet</h2>
+          <p>Save interesting opportunities from the Jobs page and they will appear here.</p>
+          <button className="primary" onClick={()=>setPage("jobs")}>Find Jobs</button>
+        </div>
+      ) : (
+        <section className="job-list">
+          {rows.map(item => {
+            const job = item.job;
+            if (!job) return null;
+            const skills = Array.isArray(job.skills)
+              ? job.skills
+              : String(job.skills || "").split(",").map(s=>s.trim()).filter(Boolean);
+
+            return <article className="list-job" key={item.id}>
+              <div className="job-icon"><BriefcaseBusiness/></div>
+
+              <div className="list-main">
+                <h3>{job.title}</h3>
+                <p>{job.company} • {job.location}</p>
+                <div className="chips">
+                  {skills.map(skill => <span key={skill}>{skill}</span>)}
+                </div>
+              </div>
+
+              <button
+                className="list-bookmark saved"
+                onClick={()=>removeSaved(job.id)}
+                title="Remove from saved jobs"
+                aria-label="Remove from saved jobs"
+              >
+                <Bookmark fill="currentColor"/>
+              </button>
+
+              <div className="list-bottom">
+                <b>{job.salary || "Salary not specified"}</b>
+                <div>
+                  <button className="secondary" onClick={()=>openJob(job)}>View</button>
+                  <button className="primary" onClick={()=>openJob(job)}>Apply Now</button>
+                </div>
+              </div>
+            </article>;
+          })}
+        </section>
+      )}
+    </main>
+  </Layout>
+}
+
 function Notifications({setPage}) {
   const [rows,setRows]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1183,7 +1420,17 @@ function Notifications({setPage}) {
     </main>
   </Layout>
 }
-function Notification({icon,title,text,time,success,old,button}){return <div className={"notification "+(success?"success":"")}><div className="notif-icon">{icon}</div><div><h3>{title}</h3><p>{text}</p>{button&&<button className="secondary">View Job</button>}</div><time>{time}{!old&&<i/>}</time></div>}
+function Notification({icon,title,text,time,success,old,button}){
+  return <div className={"notification "+(success?"success":"")}>
+    <div className="notif-icon">{icon}</div>
+    <div>
+      <h3>{title}</h3>
+      <p>{text}</p>
+      {button&&<button className="secondary">View Job</button>}
+    </div>
+    <time>{time}{success&&!old&&<i/>}</time>
+  </div>
+}
 
 function App(){
   const [page,setPage]=useState(localStorage.getItem("cc_token")?"home":"login");
@@ -1209,8 +1456,9 @@ function App(){
   if(page==="login") return <Login onLogin={handleLogin}/>;
 
   const pages = {
-    home:<Home setPage={setPage} user={user}/>,
+    home:<Home setPage={setPage} user={user} setSelectedJob={setSelectedJob}/>,
     jobs:<Jobs setPage={setPage} setSelectedJob={setSelectedJob}/>,
+    "saved-jobs":<SavedJobs setPage={setPage} setSelectedJob={setSelectedJob}/>,
     "job-detail":<JobDetail setPage={setPage} job={selectedJob}/>,
     applications:<Applications setPage={setPage}/>,
     profile:<Profile setPage={setPage}/>,

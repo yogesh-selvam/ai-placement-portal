@@ -32,6 +32,7 @@ model User {
   projects      Project[]
   applications  Application[]
   notifications Notification[]
+  savedJobs     SavedJob[]
 }
 
 model Skill {
@@ -67,6 +68,7 @@ model Job {
   createdAt   DateTime @default(now())
 
   applications Application[]
+  savedBy       SavedJob[]
 }
 
 model Application {
@@ -103,4 +105,18 @@ model OtpCode {
   createdAt DateTime @default(now())
 
   @@index([email])
+}
+
+model SavedJob {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  jobId     Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([userId])
+  @@index([jobId])
 }

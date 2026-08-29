@@ -50,7 +50,6 @@ export const authApi = {
   },
 };
 
-
 /* =========================
    JOBS API
 ========================= */
@@ -59,23 +58,14 @@ export const jobsApi = {
   getAll(params = {}) {
     const query = new URLSearchParams();
 
-    if (params.search) {
-      query.append("search", params.search);
-    }
-
-    if (params.mode) {
-      query.append("mode", params.mode);
-    }
-
-    if (params.type) {
-      query.append("type", params.type);
-    }
+    if (params.search) query.append("search", params.search);
+    if (params.mode) query.append("mode", params.mode);
+    if (params.type) query.append("type", params.type);
+    if (params.sort) query.append("sort", params.sort);
 
     const queryString = query.toString();
 
-    return request(
-      `/jobs${queryString ? `?${queryString}` : ""}`
-    );
+    return request(`/jobs${queryString ? `?${queryString}` : ""}`);
   },
 
   getById(id) {
@@ -85,13 +75,10 @@ export const jobsApi = {
   apply(id, coverLetter = "") {
     return request(`/jobs/${id}/apply`, {
       method: "POST",
-      body: JSON.stringify({
-        coverLetter,
-      }),
+      body: JSON.stringify({ coverLetter }),
     });
   },
 };
-
 
 /* =========================
    APPLICATIONS API
@@ -102,7 +89,6 @@ export const applicationsApi = {
     return request("/applications");
   },
 };
-
 
 /* =========================
    PROFILE API
@@ -121,6 +107,28 @@ export const profileApi = {
   },
 };
 
+/* =========================
+   SAVED JOBS API
+========================= */
+
+export const savedJobsApi = {
+  getAll() {
+    return request("/saved-jobs");
+  },
+
+  save(jobId) {
+    return request("/saved-jobs", {
+      method: "POST",
+      body: JSON.stringify({ jobId }),
+    });
+  },
+
+  remove(jobId) {
+    return request(`/saved-jobs/${jobId}`, {
+      method: "DELETE",
+    });
+  },
+};
 
 /* =========================
    NOTIFICATIONS API
@@ -138,7 +146,6 @@ export const notificationsApi = {
   },
 };
 
-
 /* =========================
    AI ASSISTANT API
 ========================= */
@@ -147,13 +154,10 @@ export const assistantApi = {
   chat(message) {
     return request("/assistant/chat", {
       method: "POST",
-      body: JSON.stringify({
-        message,
-      }),
+      body: JSON.stringify({ message }),
     });
   },
 };
-
 
 /* =========================
    HEALTH CHECK
