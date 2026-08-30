@@ -297,13 +297,13 @@ function Home({setPage, user, setSelectedJob}) {
     <main className="container home">
       <div className="hero-row">
         <div>
-          <h1>Good morning, {profile?.name || user?.name || "there"} ðŸ‘‹</h1>
+          <h1>Good morning, {profile?.name || user?.name || "there"} 👋</h1>
           <p>Let's find your next great opportunity.</p>
         </div>
         <div className="completion">
           <span>Profile Completion <b>{completion}%</b></span>
           <div className="progress"><i style={{width:`${completion}%`}}/></div>
-          <button className="primary" onClick={()=>setPage("profile")}>Complete Profile</button>
+          <button className="primary" onClick={()=>setPage("profile")}>{completion === 100 ? "Profile Complete ✓" : "Complete Profile"}</button>
         </div>
       </div>
 
@@ -2632,3 +2632,5 @@ createRoot(document.getElementById("root")).render(
     <App />
   </React.StrictMode>
 );
+
+
