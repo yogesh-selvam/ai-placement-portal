@@ -1387,14 +1387,17 @@ function SavedJobs({setPage,setSelectedJob}) {
   </Layout>
 }
 
-function Notifications({setPage}) {
-  const [rows,setRows]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [error,setError]=useState("");
+function Notifications({ setPage }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [markingRead, setMarkingRead] = useState(false);
+  const [error, setError] = useState("");
 
   async function loadNotifications() {
     try {
+      setError("");
       setLoading(true);
+
       const data = await notificationsApi.getAll();
       setRows(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -1409,48 +1412,166 @@ function Notifications({setPage}) {
   }, []);
 
   async function markAllRead() {
+    const unreadCount = rows.filter(
+      (notification) => !notification.read
+    ).length;
+
+    if (unreadCount === 0) return;
+
     try {
+      setError("");
+      setMarkingRead(true);
+
       await notificationsApi.markAllAsRead();
-      await loadNotifications();
+
+      setRows((currentRows) =>
+        currentRows.map((notification) => ({
+          ...notification,
+          read: true,
+        }))
+      );
     } catch (err) {
       setError(err.message || "Unable to update notifications.");
+    } finally {
+      setMarkingRead(false);
     }
   }
 
-  return <Layout page="notifications" setPage={setPage} onProfile={()=>setPage("profile")}>
-    <main className="container notifications">
-      <div className="notif-heading">
-        <div>
-          <h1>Notifications</h1>
-          <p>Stay updated with your placement activities.</p>
+  const unreadCount = rows.filter(
+    (notification) => !notification.read
+  ).length;
+
+  return (
+    <Layout
+      page="notifications"
+      setPage={setPage}
+      onProfile={() => setPage("profile")}
+    >
+      <main className="container notifications">
+
+        <div className="notif-heading">
+          <div>
+            <h1>Notifications</h1>
+            <p>Stay updated with your placement activities.</p>
+          </div>
+
+          <button
+            className="secondary"
+            onClick={markAllRead}
+            disabled={markingRead || unreadCount === 0}
+          >
+            {markingRead
+              ? "Marking..."
+              : unreadCount > 0
+                ? `Mark all as read (${unreadCount})`
+                : "All notifications read"}
+          </button>
         </div>
-        <button className="secondary" onClick={markAllRead}>Mark all as read</button>
+
+        {error && (
+          <div className="auth-error">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="notification-empty">
+            <Bell size={36} />
+            <h3>Loading notifications...</h3>
+            <p>Please wait while we fetch your latest updates.</p>
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="notification-empty">
+            <Bell size={42} />
+            <h2>No notifications yet</h2>
+            <p>
+              Your application and placement updates will appear here.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="notification-summary">
+              <div>
+                <strong>{rows.length}</strong>
+                <span>Total</span>
+              </div>
+
+              <div>
+                <strong>{unreadCount}</strong>
+                <span>Unread</span>
+              </div>
+
+              <div>
+                <strong>{rows.length - unreadCount}</strong>
+                <span>Read</span>
+              </div>
+            </div>
+
+            <h2>Recent</h2>
+
+            <div className="notification-list">
+              {rows.map((notification) => (
+                <Notification
+                  key={notification.id}
+                  icon={<Bell />}
+                  title={notification.title}
+                  text={notification.message}
+                  time={new Date(
+                    notification.createdAt
+                  ).toLocaleString()}
+                  unread={!notification.read}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+      </main>
+    </Layout>
+  );
+}
+
+function Notification({
+  icon,
+  title,
+  text,
+  time,
+  unread,
+}) {
+  return (
+    <div className={`notification ${unread ? "unread" : "read"}`}>
+
+      <div className="notif-icon">
+        {icon}
       </div>
 
-      {error && <div className="auth-error">{error}</div>}
+      <div className="notif-content">
+        <div className="notif-title-row">
+          <h3>{title}</h3>
 
-      {loading ? (
-        <p>Loading notifications...</p>
-      ) : rows.length === 0 ? (
-        <p>No notifications yet.</p>
-      ) : (
-        <>
-          <h2>Recent</h2>
-          {rows.map(n =>
-            <Notification
-              key={n.id}
-              icon={<Bell/>}
-              title={n.title}
-              text={n.message}
-              time={new Date(n.createdAt).toLocaleString()}
-              success={!n.read}
-            />
+          {unread && (
+            <span className="unread-badge">
+              NEW
+            </span>
           )}
-        </>
+        </div>
+
+        <p>{text}</p>
+
+        <time>{time}</time>
+      </div>
+
+      {unread && (
+        <span
+          className="unread-dot"
+          title="Unread notification"
+        />
       )}
-    </main>
-  </Layout>
+
+    </div>
+  );
 }
+
 function Notifications({ setPage }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
