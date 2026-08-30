@@ -24,13 +24,13 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
 
-  // Vercel Production Frontend
+  // Vercel production
   "https://ai-placement-portal-beta.vercel.app",
 
-  // Previous Render Frontend
+  // Previous Render frontend
   "https://ai-placement-portal-uhmn.onrender.com",
 
-  // Additional origins from Render environment variable
+  // Render environment variable
   ...(process.env.CLIENT_URL || "")
     .split(",")
     .map((url) => url.trim())
@@ -48,6 +48,11 @@ const corsOptions = {
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
+
+    if (/^https:\/\/.*\.vercel\.app$/.test(origin)) {
+  console.log("CORS allowed Vercel origin:", origin);
+  return callback(null, true);
+}
 
     console.warn("CORS blocked origin:", origin);
 
