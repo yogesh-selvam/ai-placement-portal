@@ -1,139 +1,146 @@
--- ============================================
--- CAREERCONNECT AI - PRODUCTION JOB DATA
--- ============================================
+generator client {
+  provider = "prisma-client-js"
+}
 
--- Existing jobs irundhaalum duplicate avoid panna
--- first existing demo jobs remove pannrom
-DELETE FROM "Job";
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
--- ============================================
--- 1. FRONTEND DEVELOPER
--- ============================================
+enum ApplicationStatus {
+  APPLIED
+  UNDER_REVIEW
+  SHORTLISTED
+  INTERVIEW
+  SELECTED
+  REJECTED
+}
 
-INSERT INTO "Job"
-(
-  "title",
-  "company",
-  "location",
-  "mode",
-  "type",
-  "salary",
-  "description",
-  "eligibility",
-  "skills"
-)
-VALUES
-(
-  'Frontend Developer',
-  'WebFlow',
-  'San Francisco, CA',
-  'Hybrid',
-  'Full-time',
-  '$80,000 - $110,000',
-  'Build responsive and modern web applications using React and JavaScript. Work closely with designers and backend developers to create high quality user experiences.',
-  'B.Tech/B.E. in Computer Science or related field. Freshers and entry-level candidates can apply.',
-  'React, JavaScript, HTML, CSS'
-);
+model User {
+  id             Int      @id @default(autoincrement())
+  email          String   @unique
+  name           String   @default("Alex Johnson")
+  degree         String   @default("B.Tech in Computer Science")
+  university     String   @default("Stanford University")
+  graduationYear Int      @default(2025)
+  gpa            String   @default("3.8/4.0")
+  resumeUrl      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
--- ============================================
--- 2. DATA ANALYST
--- ============================================
+  skills        Skill[]
+  projects      Project[]
+  applications  Application[]
+  notifications Notification[]
+  savedJobs     SavedJob[]
+}
 
-INSERT INTO "Job"
-(
-  "title",
-  "company",
-  "location",
-  "mode",
-  "type",
-  "salary",
-  "description",
-  "eligibility",
-  "skills"
-)
-VALUES
-(
-  'Data Analyst',
-  'InsightCorp',
-  'Remote',
-  'Remote',
-  'Full-time',
-  '$70,000 - $95,000',
-  'Analyze business data, identify trends and create dashboards and reports that support business decisions.',
-  'Degree in Computer Science, Statistics, Mathematics or related field.',
-  'Python, SQL, Excel, Power BI'
-);
+model Skill {
+  id     Int    @id @default(autoincrement())
+  name   String
+  userId Int
 
--- ============================================
--- 3. SOFTWARE DEVELOPER
--- ============================================
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-INSERT INTO "Job"
-(
-  "title",
-  "company",
-  "location",
-  "mode",
-  "type",
-  "salary",
-  "description",
-  "eligibility",
-  "skills"
-)
-VALUES
-(
-  'Software Developer',
-  'TechNova',
-  'San Francisco, CA',
-  'Hybrid',
-  'Full-time',
-  '$85,000 - $120,000',
-  'Develop scalable software applications and backend services. Participate in coding, debugging, testing and deployment.',
-  'B.E/B.Tech in Computer Science or related field. Strong programming and problem solving skills preferred.',
-  'Java, Python, SQL, Data Structures'
-);
+  @@unique([userId, name])
+}
 
--- ============================================
--- 4. AI/ML INTERN
--- ============================================
+model Project {
+  id          Int    @id @default(autoincrement())
+  title       String
+  description String
+  userId      Int
 
-INSERT INTO "Job"
-(
-  "title",
-  "company",
-  "location",
-  "mode",
-  "type",
-  "salary",
-  "description",
-  "eligibility",
-  "skills"
-)
-VALUES
-(
-  'AI/ML Intern',
-  'FutureScale',
-  'Remote',
-  'Remote',
-  'Internship',
-  '$1,500 - $2,500/month',
-  'Work on machine learning models and AI-powered applications. Assist with data preparation, model training and evaluation.',
-  'Students or recent graduates with programming and machine learning knowledge can apply.',
-  'Python, Machine Learning, AI, TensorFlow'
-);
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 
--- ============================================
--- VERIFY JOB DATA
--- ============================================
+model Job {
+  id          Int      @id @default(autoincrement())
+  title       String
+  company     String
+  location    String
+  mode        String
+  type        String
+  salary      String
+  description String
+  eligibility String
+  skills      String
+  createdAt   DateTime @default(now())
 
-SELECT
-  "id",
-  "title",
-  "company",
-  "location",
-  "mode",
-  "type",
-  "salary",
-  "skills"
-FROM "Job"
-ORDER BY "id";
+  applications Application[]
+  savedBy      SavedJob[]
+}
+
+model Application {
+  id                    Int               @id @default(autoincrement())
+  userId                Int
+  jobId                 Int
+  status                ApplicationStatus @default(APPLIED)
+  coverLetter           String?
+  resumeUsed            String?
+  interviewDate         DateTime?
+  interviewTime         String?
+  interviewMode         String?
+  interviewInstructions String?
+  appliedAt             DateTime          @default(now())
+  updatedAt             DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  history ApplicationHistory[]
+
+  @@unique([userId, jobId])
+  @@index([userId])
+  @@index([jobId])
+  @@index([status])
+}
+
+model ApplicationHistory {
+  id            Int               @id @default(autoincrement())
+  applicationId Int
+  status        ApplicationStatus
+  note          String?
+  createdAt     DateTime          @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OtpCode {
+  id        Int      @id @default(autoincrement())
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model SavedJob {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  jobId     Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([userId])
+  @@index([jobId])
+}
