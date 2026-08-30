@@ -16,13 +16,66 @@ const resend = new Resend(
   (process.env.RESEND_API_KEY || "").trim()
 );
 
-app.use(
-  cors({
-    origin:
-      process.env.CLIENT_URL ||
-      "http://localhost:5173",
-  })
-);
+/* =========================
+   CORS CONFIGURATION
+========================= */
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+
+  // Vercel Production Frontend
+  "https://ai-placement-portal-beta.vercel.app",
+
+  // Previous Render Frontend
+  "https://ai-placement-portal-uhmn.onrender.com",
+
+  // Additional origins from Render environment variable
+  ...(process.env.CLIENT_URL || "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean),
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests without Origin header
+    // such as Postman/server-to-server requests.
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.warn("CORS blocked origin:", origin);
+
+    return callback(
+      new Error(`CORS blocked origin: ${origin}`)
+    );
+  },
+
+  credentials: true,
+
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
+
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+  ],
+};
+
+app.use(cors(corsOptions));
+
+app.options("*", cors(corsOptions));
 
 app.use(express.json());
 
