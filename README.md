@@ -1,74 +1,166 @@
-# CareerConnect AI 🚀
+# 🎓 CareerConnect AI
 
-> **AI-powered placement and career opportunity platform for students and job seekers.**
+<p align="center">
+  <img src="https://img.shields.io/badge/React-18%2B-61DAFB?logo=react&logoColor=black">
+  <img src="https://img.shields.io/badge/Vite-6%2B-646CFF?logo=vite&logoColor=white">
+  <img src="https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white">
+  <img src="https://img.shields.io/badge/Express.js-Backend-000000?logo=express&logoColor=white">
+  <img src="https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma&logoColor=white">
+  <img src="https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white">
+  <img src="https://img.shields.io/badge/AI-Powered-7C3AED">
+  <img src="https://img.shields.io/badge/Deployment-Vercel%20%7C%20Render-000000">
+  <img src="https://img.shields.io/badge/Status-Production%20Ready-0A8F3D">
+</p>
 
-CareerConnect AI is a full-stack web application designed to simplify the placement journey by bringing **job discovery, AI-powered career matching, applications, saved jobs, notifications, and profile management** into a single platform.
-
-The application is built with a modern JavaScript stack and deployed using **Vercel, Render, and PostgreSQL** for a production-ready architecture.
+<p align="center">
+  <b>Discover. Apply. Prepare. Get Placed.</b><br>
+  A full-stack AI-powered career and placement management platform for students and job seekers.
+</p>
 
 ---
 
 ## 🌟 Overview
 
-Finding relevant opportunities during college placements can be difficult when job listings, applications, saved opportunities, and profile information are scattered across different platforms.
+**CareerConnect AI** is a full-stack career and placement platform designed to bring job discovery, personalized recommendations, applications, profile management, notifications, and AI-assisted career support into one centralized application.
 
-**CareerConnect AI** provides a centralized career platform where users can:
+The platform helps students and job seekers manage their complete career journey from building a professional profile to discovering relevant opportunities and tracking applications.
 
-- 🔐 Sign in using college email and OTP authentication
-- 👤 Create and manage their career profile
-- 💼 Discover available jobs and internships
-- 🔎 Search opportunities by title, skill, or location
-- 🤖 View AI-powered job recommendations
-- 📄 Apply for suitable opportunities
-- 🔖 Save jobs for later
-- 🔔 Receive application and career-related notifications
-- 📊 Track applications and shortlisted opportunities
-- 🎯 Improve profile completion and job matching
+### ✨ Key Features
+
+- 🔐 College email OTP authentication
+- 👤 Complete student profile management
+- 🎓 Education information management
+- 🛠️ Skills add / remove management
+- 📂 Project add / remove management
+- 📄 Resume management
+- 💼 Job discovery, search and filtering
+- 🎯 Personalized job recommendations
+- 📄 Job applications
+- 📊 Application tracking
+- 🔖 Saved jobs
+- 🔔 Notifications
+- 🤖 AI career assistance
+- 💬 AI assistant
+- 📱 Responsive user interface
+- 🔒 Protected backend APIs
+- ☁️ Production deployment
 
 ---
 
-## ✨ Key Features
-
-### 🔐 OTP-Based Authentication
-
-Users can authenticate using their college email address.
-
-**Authentication flow:**
+## 🧠 Career Workflow
 
 ```text
-College Email
-      ↓
-Request OTP
-      ↓
-OTP Verification
-      ↓
-User Authentication
-      ↓
-CareerConnect Dashboard
+🎓 Student
+   ↓
+🔐 Login with College Email
+   ↓
+👤 Build Profile
+   ↓
+🎓 Add Education
+   ↓
+🛠️ Add Skills
+   ↓
+📂 Add Projects
+   ↓
+📄 Add Resume
+   ↓
+💼 Explore Jobs
+   ↓
+🔎 Search / Filter
+   ↓
+🎯 Recommended Jobs
+   ↓
+📄 Apply
+   ↓
+📊 Track Application
+   ↓
+🔔 Receive Notifications
+   ↓
+🤖 AI Career Assistance
+   ↓
+🚀 Career Growth
 ```
 
 ---
 
-### 🏠 Personalized Dashboard
+## 🧩 Modules
 
-The dashboard provides a quick overview of the user's career activity.
-
-It includes:
-
-- Welcome section
-- Profile completion percentage
-- Applications count
-- Shortlisted opportunities
-- Interview count
-- Saved jobs count
-- Recommended opportunities
-- AI matching entry point
+| Module | Feature | Status |
+|---|---|:---:|
+| 01 | Authentication | ✅ |
+| 02 | Student Profile | ✅ |
+| 03 | Education Management | ✅ |
+| 04 | Skills Management | ✅ |
+| 05 | Project Management | ✅ |
+| 06 | Resume Management | ✅ |
+| 07 | Job Discovery | ✅ |
+| 08 | Job Search & Filtering | ✅ |
+| 09 | Recommended Jobs | ✅ |
+| 10 | Job Applications | ✅ |
+| 11 | Application Tracking | ✅ |
+| 12 | Saved Jobs | ✅ |
+| 13 | Notifications | ✅ |
+| 14 | AI Career Assistance | ✅ |
+| 15 | Production Deployment | ✅ |
 
 ---
 
-### 💼 Job Discovery
+## 🤖 AI Features
 
-Users can browse available job opportunities and internships.
+### 🎯 Personalized Job Recommendations
+
+CareerConnect AI uses available user profile information and job requirements to provide relevant job recommendations.
+
+```text
+👤 User Profile
+     ↓
+🎓 Education
+     ↓
+🛠️ Skills
+     ↓
+📂 Projects
+     ↓
+💼 Available Jobs
+     ↓
+🎯 Matching
+     ↓
+⭐ Recommended Jobs
+```
+
+The recommendation workflow is designed to help users discover opportunities that better match their current profile.
+
+---
+
+### 💬 AI Career Assistant
+
+The platform includes an AI-assisted career support experience where users can interact with the career assistant.
+
+```text
+👤 User Question
+      ↓
+💬 AI Assistant
+      ↓
+🧠 Career Context
+      ↓
+💡 Guidance
+```
+
+Possible career-support areas include:
+
+- Interview preparation
+- Career guidance
+- Skill improvement
+- Job-related questions
+- Profile improvement
+- Placement preparation
+
+> AI provider configuration can be connected through backend environment variables when required.
+
+---
+
+## 💼 Job Management
+
+CareerConnect AI provides a centralized job discovery experience.
 
 Each job can contain:
 
@@ -82,240 +174,358 @@ Each job can contain:
 - Eligibility
 - Required skills
 
-Example opportunities include:
+### Example Job Categories
 
-- Frontend Developer
-- Data Analyst
-- Software Developer
-- AI/ML Intern
-
----
-
-### 🔎 Job Search
-
-Users can search for opportunities based on:
-
-- Job title
-- Skills
-- Location
-
-This makes it easier to quickly find relevant career opportunities.
+```text
+💻 Frontend Developer
+📊 Data Analyst
+🧑‍💻 Software Developer
+🤖 AI/ML Intern
+```
 
 ---
 
-### 🤖 AI-Powered Job Matching
+## 🔎 Job Search & Filtering
 
-CareerConnect AI is designed around personalized career recommendations.
+Users can discover jobs using available search and filtering options.
 
-The recommendation system can use profile information such as:
+```text
+🔎 Search
+   +
+📍 Location
+   +
+🏢 Work Mode
+   +
+💼 Job Type
+   ↓
+📋 Relevant Jobs
+```
 
-- Skills
-- Education
-- Career interests
-- Experience
-- Job requirements
-
-The goal is to surface opportunities that are more relevant to each user's profile.
+This helps users quickly narrow down opportunities based on their preferences.
 
 ---
 
-### 📄 Application Tracking
+## 📄 Application Management
 
-Users can apply for jobs and track their application activity.
+Users can apply for jobs directly from the platform.
 
-Application-related information can include:
+Application information can include:
 
 - Applied job
+- Company
 - Application status
+- Cover letter
+- Resume used
+- Interview information
 - Application history
-- Shortlisted status
-- Interview-related information
+- Application date
+
+### Application Flow
+
+```text
+💼 View Job
+   ↓
+📄 Apply
+   ↓
+📊 Application Created
+   ↓
+🔄 Track Status
+   ↓
+🎯 Shortlisted / Interview
+```
 
 ---
 
-### 🔖 Saved Jobs
+## 🔖 Saved Jobs
 
-Users can save interesting jobs and access them later from the **Saved Jobs** section.
+Users can save interesting opportunities for future reference.
 
-This helps users maintain a personal shortlist of opportunities without immediately applying.
+```text
+💼 Job
+ ↓
+🔖 Save
+ ↓
+📚 Saved Jobs
+ ↓
+📄 View / Apply Later
+```
+
+This allows users to maintain a personal collection of opportunities.
 
 ---
 
-### 🔔 Notifications
+## 🔔 Notifications
 
-The platform provides a notification area for important career and application updates.
+The notification system keeps users informed about important career and application events.
 
 Examples include:
 
-- Application updates
-- Shortlisting updates
-- Interview-related notifications
-- Platform notifications
+- 📄 Application updates
+- 🎯 Shortlisting updates
+- 🎤 Interview updates
+- 🔔 Career notifications
 
 ---
 
-### 👤 Profile Management
+## 👤 Profile Management
 
-Users can maintain their professional profile and improve their profile completion percentage.
+Users can maintain a professional career profile from a centralized profile section.
 
-Profile information can be used to improve the relevance of job recommendations.
+### Profile Sections
+
+```text
+👤 Personal Information
+🎓 Education
+🛠️ Skills
+📂 Projects
+📄 Resume
+```
+
+### Profile Editing
+
+Users can:
+
+- ✏️ Edit personal information
+- 🎓 Update education
+- ➕ Add skills
+- ➖ Remove skills
+- ➕ Add projects
+- ➖ Remove projects
+- 📄 Update resume information
+
+Profile information can also contribute to personalized job matching.
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+
+- ⚛️ React
+- ⚡ Vite
+- 💻 JavaScript / JSX
+- 🎨 CSS
+- 🧩 Lucide React
+
+### Backend
+
+- 🟢 Node.js
+- 🚂 Express.js
+- 🔌 REST APIs
+- 🔐 JWT-based authentication
+- 🛡️ CORS
+
+### Database
+
+- 🐘 PostgreSQL
+- 🔷 Prisma ORM
+
+### Email Authentication
+
+- 📧 Resend
+- 🔐 OTP verification
+
+### Deployment
+
+- ▲ Vercel — Frontend
+- 🚀 Render — Backend
+- 🐘 Render PostgreSQL — Database
+
+### Development Tools
+
+- Git
+- GitHub
+- npm
+- VS Code
 
 ---
 
 ## 🏗️ System Architecture
 
 ```text
-                    ┌───────────────────────┐
-                    │       User            │
-                    │   Web Browser         │
-                    └───────────┬───────────┘
-                                │
-                                ▼
-                    ┌───────────────────────┐
-                    │       Vercel          │
-                    │   React + Vite        │
-                    │      Frontend         │
-                    └───────────┬───────────┘
-                                │
-                         HTTPS / REST API
-                                │
-                                ▼
-                    ┌───────────────────────┐
-                    │       Render          │
-                    │  Node.js + Express    │
-                    │       Backend         │
-                    └───────────┬───────────┘
-                                │
-                         Prisma ORM
-                                │
-                                ▼
-                    ┌───────────────────────┐
-                    │   PostgreSQL DB       │
-                    │       Render          │
-                    └───────────────────────┘
+                         🌍 USER
+                           │
+                           ▼
+                 ┌────────────────────┐
+                 │       ▲ Vercel     │
+                 │   React + Vite     │
+                 │      FRONTEND      │
+                 └─────────┬──────────┘
+                           │
+                           │ HTTPS / REST API
+                           ▼
+                 ┌────────────────────┐
+                 │       🚀 Render    │
+                 │ Node.js + Express  │
+                 │     BACKEND        │
+                 └─────────┬──────────┘
+                           │
+                           │ Prisma ORM
+                           ▼
+                 ┌────────────────────┐
+                 │ 🐘 PostgreSQL      │
+                 │   Render Database  │
+                 └────────────────────┘
 ```
 
 ---
 
-## 🛠️ Technology Stack
-
-### Frontend
-
-| Technology | Purpose |
-|---|---|
-| React | User interface |
-| Vite | Frontend build tool |
-| JavaScript | Application logic |
-| CSS | Styling and responsive UI |
-
-### Backend
-
-| Technology | Purpose |
-|---|---|
-| Node.js | Server runtime |
-| Express.js | REST API |
-| Prisma | Database ORM |
-| JavaScript | Backend logic |
-
-### Database
-
-| Technology | Purpose |
-|---|---|
-| PostgreSQL | Production relational database |
-| Prisma Schema | Database models and relationships |
-
-### Deployment
-
-| Platform | Responsibility |
-|---|---|
-| Vercel | Frontend hosting |
-| Render | Backend API hosting |
-| Render PostgreSQL | Production database |
-
----
-
-## 📁 Project Structure
+## 🗂️ Project Structure
 
 ```text
 ai-placement-portal-fullstack/
 │
 ├── client/
 │   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   ├── App.jsx
-│   │   └── main.jsx
+│   │   ├── api.js
+│   │   ├── main.jsx
+│   │   └── styles.css
 │   │
 │   ├── public/
 │   ├── package.json
 │   └── vite.config.js
 │
 ├── server/
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   └── seed.js
+│   │
 │   ├── src/
 │   │   └── server.js
-│   │
-│   ├── prisma/
-│   │   └── schema.prisma
 │   │
 │   ├── package.json
 │   └── .env
 │
 ├── README.md
-└── package.json
+├── package.json
+└── .gitignore
 ```
-
-> Folder names may vary slightly depending on the current project version.
 
 ---
 
-## 🗄️ Database
+## 🗄️ Database Design
 
-CareerConnect AI uses **PostgreSQL** with **Prisma ORM**.
+CareerConnect AI uses PostgreSQL with Prisma ORM.
 
-The application contains database entities for major platform features, including:
+### Main Models
 
 ```text
 User
+ │
+ ├── Skill
+ ├── Project
+ ├── Application
+ ├── Notification
+ └── SavedJob
+
 Job
+ │
+ ├── Application
+ └── SavedJob
+
 Application
-ApplicationHistory
-SavedJob
-Notification
+ │
+ └── ApplicationHistory
+
 OtpCode
-Project
-Skill
 ```
 
-### Relationship Overview
+### Core Database Entities
 
-```text
-User
- │
- ├── Applications
- │
- ├── Saved Jobs
- │
- ├── Notifications
- │
- ├── OTP Codes
- │
- ├── Projects
- │
- └── Skills
-
-Job
- │
- ├── Applications
- │
- └── Saved Jobs
-```
+| Model | Purpose |
+|---|---|
+| User | User account and profile |
+| Skill | User skills |
+| Project | User projects |
+| Job | Job opportunities |
+| Application | Job applications |
+| ApplicationHistory | Application status history |
+| Notification | User notifications |
+| OtpCode | OTP authentication |
+| SavedJob | Saved opportunities |
 
 ---
 
-## 🔌 API Overview
+## 🔌 Main APIs
 
-The backend exposes REST API endpoints for the frontend.
+```text
+/api
+│
+├── /auth
+│   ├── /request-otp
+│   ├── /verify-otp
+│   └── /me
+│
+├── /profile
+│
+├── /jobs
+│   ├── /
+│   ├── /:id
+│   ├── /:id/apply
+│   └── /recommended
+│
+├── /applications
+│
+├── /saved-jobs
+│
+├── /notifications
+│
+├── /assistant
+│   └── /chat
+│
+└── /health
+```
+
+### Authentication
+
+```http
+POST /api/auth/request-otp
+POST /api/auth/verify-otp
+GET  /api/auth/me
+```
+
+### Jobs
+
+```http
+GET /api/jobs
+GET /api/jobs/:id
+GET /api/jobs/recommended
+POST /api/jobs/:id/apply
+```
+
+### Profile
+
+```http
+GET /api/profile
+PUT /api/profile
+```
+
+### Applications
+
+```http
+GET /api/applications
+```
+
+### Saved Jobs
+
+```http
+GET    /api/saved-jobs
+POST   /api/saved-jobs
+DELETE /api/saved-jobs/:jobId
+```
+
+### Notifications
+
+```http
+GET   /api/notifications
+PATCH /api/notifications/read-all
+```
+
+### AI Assistant
+
+```http
+POST /api/assistant/chat
+```
 
 ### Health Check
 
@@ -323,94 +533,42 @@ The backend exposes REST API endpoints for the frontend.
 GET /api/health
 ```
 
-Used to verify that the backend service is running.
-
-### Jobs
-
-```http
-GET /api/jobs
-```
-
-Returns available job opportunities.
-
-### Authentication
-
-```http
-POST /api/auth/request-otp
-POST /api/auth/verify-otp
-```
-
-Used for OTP-based authentication.
-
-### Recommended Jobs
-
-The backend also provides recommendation functionality for personalized job discovery.
-
-> API routes may evolve as new features are added.
-
 ---
 
-## 🔐 Environment Variables
+## ⚙️ Environment Variables
 
-### Backend
-
-Create a `.env` file inside the `server` directory.
-
-Example:
+### Backend — `server/.env`
 
 ```env
-PORT=10000
-
-DATABASE_URL="your_postgresql_connection_string"
-
+DATABASE_URL="your-postgresql-database-url"
+JWT_SECRET="your-production-secret"
+PORT=5000
 CLIENT_URL="https://your-vercel-domain.vercel.app"
-
-RESEND_API_KEY="your_resend_api_key"
+RESEND_API_KEY="your-resend-api-key"
+SMTP_FROM="CareerConnect AI <onboarding@resend.dev>"
+AI_API_KEY=""
 ```
 
-### Frontend
-
-For Vite, configure:
+### Frontend — `.env`
 
 ```env
-VITE_API_URL="https://your-render-api.onrender.com"
+VITE_API_URL="https://your-render-backend.onrender.com"
 ```
 
-### ⚠️ Security
-
-Never commit real credentials or secret keys to GitHub.
-
-Do **not** expose:
-
-```text
-DATABASE_URL
-RESEND_API_KEY
-JWT_SECRET
-API keys
-SMTP credentials
-```
-
-Use environment variables in Vercel and Render instead.
+> ⚠️ Never commit real production secrets, database passwords, JWT secrets, API keys, or `.env` files to GitHub.
 
 ---
 
-## 🚀 Local Development
+## 🚀 Local Setup
 
-### 1. Clone the repository
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/yogesh-selvam/ai-placement-portal.git
-```
-
-```bash
 cd ai-placement-portal
 ```
 
----
-
-### 2. Install dependencies
-
-Install root dependencies if required:
+### 2. Install Dependencies
 
 ```bash
 npm install
@@ -430,33 +588,40 @@ cd ../server
 npm install
 ```
 
----
+### 3. Configure Environment Variables
 
-### 3. Configure PostgreSQL
-
-Create/configure a PostgreSQL database and add the connection string to:
+Create:
 
 ```text
 server/.env
 ```
 
-Example:
+Configure:
 
 ```env
-DATABASE_URL="postgresql://username:password@host:5432/database"
+DATABASE_URL="your-database-url"
+JWT_SECRET="your-secret"
+PORT=5000
+CLIENT_URL="http://localhost:5173"
+RESEND_API_KEY="your-api-key"
 ```
 
----
+For frontend create:
+
+```text
+client/.env
+```
+
+```env
+VITE_API_URL="http://localhost:5000"
+```
 
 ### 4. Generate Prisma Client
 
-From the `server` directory:
-
 ```bash
+cd server
 npx prisma generate
 ```
-
----
 
 ### 5. Validate Prisma Schema
 
@@ -464,21 +629,26 @@ npx prisma generate
 npx prisma validate --schema=prisma/schema.prisma
 ```
 
----
-
-### 6. Start Backend
-
-From the `server` directory:
+### 6. Run Database Migration
 
 ```bash
-npm start
+npx prisma migrate dev
 ```
 
-The API should be available on the configured backend port.
+If seed data is available:
 
----
+```bash
+node prisma/seed.js
+```
 
-### 7. Start Frontend
+### 7. Start Backend
+
+```bash
+cd server
+npm run dev
+```
+
+### 8. Start Frontend
 
 Open another terminal:
 
@@ -487,7 +657,7 @@ cd client
 npm run dev
 ```
 
-Vite will provide a local development URL, usually similar to:
+The frontend will normally be available at:
 
 ```text
 http://localhost:5173
@@ -495,68 +665,82 @@ http://localhost:5173
 
 ---
 
-## 🏭 Production Deployment
-
-CareerConnect AI is deployed using:
-
-```text
-GitHub
-   │
-   ├──────────────► Render
-   │                  │
-   │                  ├── Node.js API
-   │                  └── PostgreSQL
-   │
-   └──────────────► Vercel
-                      │
-                      └── React/Vite Frontend
-```
-
-### Backend Deployment
-
-The backend is hosted on Render.
-
-Production API:
-
-```text
-https://careerconnect-ai-api.onrender.com
-```
-
-### Frontend Deployment
-
-The frontend is hosted on Vercel.
-
-The frontend uses the Render API through:
-
-```env
-VITE_API_URL=https://careerconnect-ai-api.onrender.com
-```
-
-### CORS
-
-The backend is configured to allow the production frontend origin and Vercel deployment domains.
-
-This allows the browser-based frontend to communicate securely with the Render API.
-
----
-
-## 🌐 Live Application
+## 🏭 Production Build
 
 ### Frontend
 
-**CareerConnect AI**
+```bash
+cd client
+npm install
+npm run build
+```
+
+Build output:
+
+```text
+client/dist/
+```
+
+### Backend
+
+```bash
+cd server
+npm install
+npx prisma generate
+npm start
+```
+
+---
+
+## ☁️ Production Deployment
+
+CareerConnect AI uses a separated production architecture.
+
+```text
+                 🌍 USERS
+                    │
+                    ▼
+          ┌────────────────────┐
+          │       VERCEL       │
+          │                    │
+          │ React + Vite       │
+          │ Frontend           │
+          └─────────┬──────────┘
+                    │
+                    │ HTTPS
+                    ▼
+          ┌────────────────────┐
+          │       RENDER       │
+          │                    │
+          │ Node.js + Express  │
+          │ Backend API        │
+          └─────────┬──────────┘
+                    │
+                    ▼
+          ┌────────────────────┐
+          │ RENDER POSTGRESQL  │
+          │                    │
+          │ Production DB      │
+          └────────────────────┘
+```
+
+---
+
+## 🌐 Production URLs
+
+### Frontend
 
 ```text
 https://ai-placement-portal-beta.vercel.app
 ```
 
-### Backend API
+### Backend
 
 ```text
 https://careerconnect-ai-api.onrender.com
 ```
 
-### Health Check
+### API Health Check
 
 ```text
 https://careerconnect-ai-api.onrender.com/api/health
@@ -564,172 +748,152 @@ https://careerconnect-ai-api.onrender.com/api/health
 
 ---
 
-## 🧪 Production Verification
+## 🔐 Production CORS
 
-After deployment, verify the following:
-
-### Frontend
-
-- [x] Vercel deployment successful
-- [x] Application loads successfully
-- [x] Dashboard renders correctly
-- [x] Navigation works
-
-### Backend
-
-- [x] Render deployment successful
-- [x] API is reachable
-- [x] Job API returns data
-- [x] Authentication API is available
-- [x] CORS configuration works
-
-### Database
-
-- [x] PostgreSQL connection configured
-- [x] Prisma schema validated
-- [x] Job records available
-- [x] Application-related tables available
-
-### Integration
-
-- [x] Vercel frontend communicates with Render backend
-- [x] Production API URL configured
-- [x] CORS issue resolved
-- [x] Production application successfully loads backend data
-
----
-
-## 📊 Current Job Data
-
-The application includes production-style sample job opportunities such as:
-
-| Role | Company | Location | Mode | Type |
-|---|---|---|---|---|
-| Frontend Developer | WebFlow | San Francisco, CA | On-site | Full-time |
-| Data Analyst | InsightCorp | Remote | Remote | Full-time |
-| Software Developer | TechNova | San Francisco, CA | Hybrid | Full-time |
-| AI/ML Intern | FutureScale | Remote | Remote | Internship |
-
-These records are intended to demonstrate the platform's job discovery and recommendation workflow.
-
----
-
-## 🔄 Application Workflow
+The backend is configured to allow the production Vercel frontend and Vercel deployment URLs.
 
 ```text
-                    START
-                      │
-                      ▼
-              Enter College Email
-                      │
-                      ▼
-                 Request OTP
-                      │
-                      ▼
-                Verify OTP
-                      │
-                      ▼
-                User Dashboard
-                      │
-          ┌───────────┼────────────┐
-          ▼           ▼            ▼
-       Search       Profile      AI Match
-        Jobs       Completion    Jobs
-          │           │            │
-          └───────────┼────────────┘
-                      ▼
-                 View Job
-                      │
-             ┌────────┴────────┐
-             ▼                 ▼
-          Save Job          Apply Job
-             │                 │
-             ▼                 ▼
-        Saved Jobs       Application
-                              │
-                              ▼
-                       Track Status
+Vercel Frontend
+      │
+      │ HTTPS
+      ▼
+Render API
+      │
+      │ CORS validation
+      ▼
+Protected API
 ```
 
----
-
-## 🎯 Project Objectives
-
-CareerConnect AI aims to:
-
-1. Centralize placement opportunities.
-2. Reduce the time required to discover relevant jobs.
-3. Personalize job recommendations.
-4. Simplify the application process.
-5. Help students track their career activity.
-6. Provide a scalable foundation for future AI-driven placement features.
+This enables the production React application to communicate securely with the backend API.
 
 ---
 
-## 🔮 Future Enhancements
+## 🧪 Validation
 
-Potential future improvements include:
-
-- 🧠 Advanced AI job matching
-- 📄 AI-powered resume analysis
-- 🎯 Skill-gap detection
-- 📚 Personalized learning recommendations
-- 🎤 AI mock interviews
-- 📝 Resume builder
-- 📈 Placement analytics dashboard
-- 🏢 Recruiter/company portal
-- 🔔 Real-time notifications
-- 📊 Advanced application analytics
-- 🧩 Skill-based recommendation scoring
-- ☁️ Improved production monitoring
-
----
-
-## 🔒 Security Considerations
-
-The production application should follow these security practices:
-
-- Store secrets only in environment variables.
-- Never commit `.env` files.
-- Validate user input on the backend.
-- Use HTTPS in production.
-- Configure CORS carefully.
-- Protect authenticated API routes.
-- Use secure OTP expiration and verification.
-- Avoid exposing database credentials.
-- Keep dependencies updated.
-- Apply appropriate rate limiting to authentication endpoints.
-
----
-
-## 🧑‍💻 Git Workflow
-
-Recommended development workflow:
+### Backend Syntax
 
 ```bash
-git pull origin main
+node --check server/src/server.js
 ```
 
-Make changes, then:
+### Frontend Build
 
 ```bash
-git add .
-git commit -m "Describe your changes"
-git push origin main
+cd client
+npm run build
 ```
 
-Connected deployments can then build the latest `main` branch.
+### Prisma Validation
+
+```bash
+cd server
+npx prisma validate --schema=prisma/schema.prisma
+```
+
+### Prisma Client
+
+```bash
+npx prisma generate
+```
+
+### Health Check
+
+```http
+GET /api/health
+```
+
+---
+
+## 🧪 Production Testing Checklist
+
+### 🔐 Authentication
+
+- [x] College email authentication
+- [x] OTP request
+- [x] OTP verification
+- [x] Authenticated session
+- [x] Protected APIs
+
+### 👤 Profile
+
+- [x] Personal information
+- [x] Education
+- [x] Skills
+- [x] Projects
+- [x] Resume
+
+### 💼 Jobs
+
+- [x] Job listing
+- [x] Job search
+- [x] Job filtering
+- [x] Job details
+- [x] Recommended jobs
+- [x] Apply
+
+### 📊 Applications
+
+- [x] Application creation
+- [x] Application tracking
+- [x] Application history
+
+### 🔖 Saved Jobs
+
+- [x] Save job
+- [x] View saved jobs
+- [x] Remove saved job
+
+### 🔔 Notifications
+
+- [x] View notifications
+- [x] Mark notifications as read
+
+### 🤖 AI
+
+- [x] AI career assistance
+- [x] AI assistant interface
+- [x] Personalized career support
+
+### 🌐 Deployment
+
+- [x] Frontend deployed on Vercel
+- [x] Backend deployed on Render
+- [x] PostgreSQL deployed on Render
+- [x] Production API verified
+- [x] CORS configured
+- [x] Production frontend verified
+
+---
+
+## 🔒 Security
+
+CareerConnect AI uses protected backend APIs and environment-based configuration.
+
+### Security Practices
+
+- 🔐 OTP-based authentication
+- 🛡️ Protected API routes
+- 🔑 JWT authentication
+- 🌐 HTTPS production communication
+- 🚫 Restricted CORS
+- 🔒 Environment-based secrets
+- 🗄️ Secure database connection
+- 🧹 Backend input validation
+- 📧 OTP expiration
+- 🚫 No production secrets committed to Git
+
+> A complete security audit should be performed before large-scale public deployment.
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Frontend cannot connect to backend
+### Frontend Cannot Connect to Backend
 
 Check:
 
 ```env
-VITE_API_URL=https://careerconnect-ai-api.onrender.com
+VITE_API_URL="https://careerconnect-ai-api.onrender.com"
 ```
 
 Then verify:
@@ -742,9 +906,13 @@ https://careerconnect-ai-api.onrender.com/api/health
 
 ### CORS Error
 
-Verify that the frontend production domain is allowed by the backend CORS configuration.
+Check:
 
-Also make sure the backend is running and the frontend is using the correct Render API URL.
+```env
+CLIENT_URL="https://ai-placement-portal-beta.vercel.app"
+```
+
+Also verify that the Render backend has been redeployed after changing environment variables.
 
 ---
 
@@ -753,6 +921,7 @@ Also make sure the backend is running and the frontend is using the correct Rend
 Run:
 
 ```bash
+cd server
 npx prisma validate --schema=prisma/schema.prisma
 ```
 
@@ -764,32 +933,9 @@ npx prisma generate
 
 ---
 
-### Render Deployment Failure
+### Vercel Build Error
 
 Check:
-
-- Build command
-- Start command
-- Environment variables
-- Node.js version
-- Prisma generation
-- Database connection
-- Render deployment logs
-
----
-
-### Vercel Deployment Failure
-
-Check:
-
-- Root Directory
-- Build Command
-- Output Directory
-- `VITE_API_URL`
-- Git branch
-- Build logs
-
-For a Vite frontend, typical settings are:
 
 ```text
 Root Directory: client
@@ -797,43 +943,138 @@ Build Command: npm run build
 Output Directory: dist
 ```
 
----
+Also verify:
 
-## 📸 Application Preview
-
-The production application provides a clean career-focused interface containing:
-
-- CareerConnect AI branding
-- Personalized welcome dashboard
-- Profile completion indicator
-- Job search
-- Applications
-- Saved Jobs
-- Notifications
-- AI-powered recommendations
-
----
-
-## 📌 Project Status
-
-**Status: Production Deployment Ready / Live**
-
-```text
-Frontend        → Vercel       ✅
-Backend         → Render       ✅
-Database        → PostgreSQL   ✅
-ORM             → Prisma       ✅
-Authentication  → OTP          ✅
-CORS            → Configured   ✅
-Git Repository  → GitHub       ✅
-Production API  → Live         ✅
+```env
+VITE_API_URL
 ```
 
+is configured in Vercel Environment Variables.
+
 ---
 
-## 👨‍💻 Developer
+### Render Deployment Error
 
-**Yogesh Selvam**
+Check:
+
+- Environment variables
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `CLIENT_URL`
+- `RESEND_API_KEY`
+- Prisma generation
+- Start command
+- Build logs
+- Runtime logs
+
+---
+
+## 📈 Future Enhancements
+
+Potential future improvements include:
+
+- 🧠 Advanced AI job matching
+- 📄 AI resume analysis
+- 📝 AI resume builder
+- 🎤 AI mock interviews
+- 🧠 Adaptive interview questions
+- 📊 Advanced placement analytics
+- 🎯 Skill-gap analysis
+- 📚 Personalized learning recommendations
+- 🏢 Recruiter portal
+- 🔔 Real-time notifications
+- 📈 Career progress dashboard
+- 🧩 Advanced recommendation scoring
+- ☁️ Enhanced production monitoring
+
+---
+
+## 🎯 Project Objectives
+
+CareerConnect AI aims to:
+
+1. Centralize student career activities.
+2. Simplify job discovery.
+3. Personalize job recommendations.
+4. Improve application management.
+5. Help students maintain professional profiles.
+6. Support placement preparation.
+7. Provide AI-assisted career guidance.
+8. Create a scalable full-stack career platform.
+
+---
+
+## 📊 Release Status
+
+```text
+Frontend              ✅ Complete
+Backend               ✅ Complete
+Database              ✅ Complete
+Authentication        ✅ Complete
+Profile Management    ✅ Complete
+Education Management  ✅ Complete
+Skills Management     ✅ Complete
+Project Management    ✅ Complete
+Resume Management     ✅ Complete
+Job Discovery         ✅ Complete
+Job Recommendations   ✅ Complete
+Applications          ✅ Complete
+Saved Jobs            ✅ Complete
+Notifications         ✅ Complete
+AI Assistant          ✅ Complete
+CORS Configuration    ✅ Complete
+Production Build      ✅ Verified
+GitHub Repository     ✅ Configured
+Vercel Deployment     ✅ Live
+Render Deployment     ✅ Live
+PostgreSQL            ✅ Connected
+```
+
+### 🎉 Current Milestone
+
+**CareerConnect AI — Full-Stack Production Deployment Complete**
+
+---
+
+## 🌍 Vision
+
+CareerConnect AI aims to become a complete digital career companion for students and job seekers.
+
+```text
+👤 Profile
+   +
+💼 Jobs
+   +
+🎯 Recommendations
+   +
+📄 Applications
+   +
+🔖 Saved Jobs
+   +
+🔔 Notifications
+   +
+🤖 AI Career Support
+   =
+🚀 Complete Career Journey
+```
+
+> ### 🎓 Discover opportunities. Build skills. Prepare smarter. Get placed.
+
+---
+
+## 👨‍💻 Project
+
+### 🎓 CareerConnect AI
+
+**Full-Stack AI-Powered Career & Placement Management Platform**
+
+Built with ❤️ using:
+
+**React + Vite + Node.js + Express + Prisma + PostgreSQL**
+
+---
+
+## 🔗 Repository
 
 GitHub:
 
@@ -843,21 +1084,19 @@ https://github.com/yogesh-selvam/ai-placement-portal
 
 ---
 
-## 📄 License
+## ⭐ Final
 
-This project is intended for educational, portfolio, and placement-project purposes.
-
-If you plan to distribute or commercialize the project, add an appropriate open-source or proprietary license before publication.
-
----
-
-## ⭐ Support
-
-If you find the project useful, consider giving the repository a ⭐ on GitHub.
-
----
+```text
+╔══════════════════════════════════════════╗
+║                                          ║
+║          🎓 CAREERCONNECT AI             ║
+║                                          ║
+║     Discover. Apply. Prepare.            ║
+║              Get Placed. 🚀              ║
+║                                          ║
+╚══════════════════════════════════════════╝
+```
 
 <p align="center">
-  <strong>CareerConnect AI</strong><br>
-  Your career. Your opportunities. Your future. 🚀
+  <b>Built for students. Powered by technology. Designed for careers.</b>
 </p>
