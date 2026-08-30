@@ -33,6 +33,7 @@ app.use(express.json());
 const auth = async (req, res, next) => {
   try {
     const header = req.headers.authorization || "";
+
     const token = header.startsWith("Bearer ")
       ? header.slice(7)
       : null;
@@ -109,13 +110,16 @@ async function sendOtp(email, otp) {
     console.log(
       "======================================"
     );
+
     console.log(
       "Sending OTP email with Resend..."
     );
+
     console.log(
       "OTP recipient:",
       normalizedEmail
     );
+
     console.log(
       "======================================"
     );
@@ -290,21 +294,30 @@ app.post(
 
       const otp = makeOtp();
 
-      const codeHash = await bcrypt.hash(otp, 10);
+      const codeHash =
+        await bcrypt.hash(
+          otp,
+          10
+        );
 
-// Send email first
-await sendOtp(email, otp);
+      /* Send email first */
+      await sendOtp(
+        email,
+        otp
+      );
 
-// Save OTP only after email is sent
-await prisma.otpCode.create({
-  data: {
-    email,
-    codeHash,
-    expiresAt: new Date(
-      Date.now() + 10 * 60 * 1000
-    ),
-  },
-});
+      /* Save OTP only after email succeeds */
+      await prisma.otpCode.create({
+        data: {
+          email,
+          codeHash,
+          expiresAt:
+            new Date(
+              Date.now() +
+              10 * 60 * 1000
+            ),
+        },
+      });
 
       console.log(
         "OTP REQUEST COMPLETED:",
@@ -416,7 +429,8 @@ app.post(
         });
 
         return res.status(400).json({
-          message: "Invalid OTP",
+          message:
+            "Invalid OTP",
         });
       }
 
@@ -436,13 +450,15 @@ app.post(
       const token =
         jwt.sign(
           {
-            userId: user.id,
+            userId:
+              user.id,
           },
 
           process.env.JWT_SECRET,
 
           {
-            expiresIn: "7d",
+            expiresIn:
+              "7d",
           }
         );
 
@@ -474,7 +490,9 @@ app.get(
   "/api/auth/me",
   auth,
   async (req, res) => {
-    res.json(req.user);
+    res.json(
+      req.user
+    );
   }
 );
 
@@ -520,40 +538,46 @@ app.get(
         });
 
       const filtered =
-        jobs.filter((job) => {
+        jobs.filter(
+          (job) => {
 
-          const haystack =
-            `${job.title} ${job.company} ${job.location} ${job.skills}`
-              .toLowerCase();
+            const haystack =
+              `${job.title} ${job.company} ${job.location} ${job.skills}`
+                .toLowerCase();
 
-          return (
-            (!search ||
-              haystack.includes(
-                String(search)
-                  .toLowerCase()
-              )) &&
+            return (
+              (!search ||
+                haystack.includes(
+                  String(search)
+                    .toLowerCase()
+                )) &&
 
-            (!mode ||
-              job.mode === mode) &&
+              (!mode ||
+                job.mode === mode) &&
 
-            (!type ||
-              job.type === type)
-          );
-        });
+              (!type ||
+                job.type === type)
+            );
+          }
+        );
 
       res.json(
-        filtered.map((job) => ({
-          ...job,
+        filtered.map(
+          (job) => ({
+            ...job,
 
-          skills:
-            job.skills
-              .split(",")
-              .map(
-                (skill) =>
-                  skill.trim()
+            skills:
+              String(
+                job.skills || ""
               )
-              .filter(Boolean),
-        }))
+                .split(",")
+                .map(
+                  (skill) =>
+                    skill.trim()
+                )
+                .filter(Boolean),
+          })
+        )
       );
 
     } catch (err) {
@@ -569,6 +593,159 @@ app.get(
 );
 
 /* =========================
+   AI JOB MATCHING
+
+   IMPORTANT:
+   This route MUST come before
+   /api/jobs/:id
+========================= */
+
+app.get(
+  "/api/jobs/recommended",
+  auth,
+  async (req, res) => {
+
+    try {
+
+      const profile =
+        await prisma.user.findUnique({
+          where: {
+            id:
+              req.user.id,
+          },
+
+          include: {
+            skills: true,
+          },
+        });
+
+      if (!profile) {
+        return res.status(404).json({
+          message:
+            "Profile not found",
+        });
+      }
+
+      const userSkills =
+        profile.skills
+          .map(
+            (skill) =>
+              String(
+                skill.name || ""
+              )
+                .trim()
+                .toLowerCase()
+          )
+          .filter(Boolean);
+
+      const jobs =
+        await prisma.job.findMany({
+          orderBy: {
+            createdAt:
+              "desc",
+          },
+        });
+
+      const recommendedJobs =
+        jobs.map(
+          (job) => {
+
+            const jobSkills =
+              String(
+                job.skills || ""
+              )
+                .split(",")
+                .map(
+                  (skill) =>
+                    skill.trim()
+                )
+                .filter(Boolean);
+
+            const matchingSkills =
+              jobSkills.filter(
+                (skill) =>
+                  userSkills.includes(
+                    skill.toLowerCase()
+                  )
+              );
+
+            const missingSkills =
+              jobSkills.filter(
+                (skill) =>
+                  !userSkills.includes(
+                    skill.toLowerCase()
+                  )
+              );
+
+            const matchPercentage =
+              jobSkills.length === 0
+                ? 0
+                : Math.round(
+                    (
+                      matchingSkills.length /
+                      jobSkills.length
+                    ) * 100
+                  );
+
+            return {
+              ...job,
+
+              skills:
+                jobSkills,
+
+              matchPercentage,
+
+              matchingSkills,
+
+              missingSkills,
+            };
+          }
+        );
+
+      recommendedJobs.sort(
+        (a, b) => {
+
+          if (
+            b.matchPercentage !==
+            a.matchPercentage
+          ) {
+            return (
+              b.matchPercentage -
+              a.matchPercentage
+            );
+          }
+
+          return (
+            new Date(
+              b.createdAt
+            ) -
+            new Date(
+              a.createdAt
+            )
+          );
+        }
+      );
+
+      res.json(
+        recommendedJobs
+      );
+
+    } catch (err) {
+
+      console.error(
+        "Job recommendation error:",
+        err
+      );
+
+      res.status(500).json({
+        message:
+          "Unable to generate job recommendations",
+      });
+    }
+  }
+);
+
+/* =========================
    JOB BY ID
 ========================= */
 
@@ -577,12 +754,28 @@ app.get(
   async (req, res) => {
     try {
 
+      const jobId =
+        Number(
+          req.params.id
+        );
+
+      if (
+        !Number.isInteger(
+          jobId
+        ) ||
+        jobId <= 0
+      ) {
+        return res.status(400).json({
+          message:
+            "Invalid job ID",
+        });
+      }
+
       const job =
         await prisma.job.findUnique({
           where: {
-            id: Number(
-              req.params.id
-            ),
+            id:
+              jobId,
           },
         });
 
@@ -597,7 +790,9 @@ app.get(
         ...job,
 
         skills:
-          job.skills
+          String(
+            job.skills || ""
+          )
             .split(",")
             .map(
               (skill) =>
@@ -630,12 +825,27 @@ app.post(
     try {
 
       const jobId =
-        Number(req.params.id);
+        Number(
+          req.params.id
+        );
+
+      if (
+        !Number.isInteger(
+          jobId
+        ) ||
+        jobId <= 0
+      ) {
+        return res.status(400).json({
+          message:
+            "Invalid job ID",
+        });
+      }
 
       const job =
         await prisma.job.findUnique({
           where: {
-            id: jobId,
+            id:
+              jobId,
           },
         });
 
@@ -754,29 +964,38 @@ app.get(
           },
 
           orderBy: {
-            createdAt: "desc",
+            createdAt:
+              "desc",
           },
         });
 
       res.json(
-        rows.map((row) => ({
-          ...row,
+        rows.map(
+          (row) => ({
+            ...row,
 
-          job: row.job
-            ? {
-                ...row.job,
+            job:
+              row.job
+                ? {
+                    ...row.job,
 
-                skills:
-                  row.job.skills
-                    .split(",")
-                    .map(
-                      (skill) =>
-                        skill.trim()
-                    )
-                    .filter(Boolean),
-              }
-            : null,
-        }))
+                    skills:
+                      String(
+                        row.job.skills ||
+                        ""
+                      )
+                        .split(",")
+                        .map(
+                          (skill) =>
+                            skill.trim()
+                        )
+                        .filter(
+                          Boolean
+                        ),
+                  }
+                : null,
+          })
+        )
       );
 
     } catch (err) {
@@ -799,10 +1018,14 @@ app.post(
     try {
 
       const jobId =
-        Number(req.body.jobId);
+        Number(
+          req.body.jobId
+        );
 
       if (
-        !Number.isInteger(jobId) ||
+        !Number.isInteger(
+          jobId
+        ) ||
         jobId <= 0
       ) {
         return res.status(400).json({
@@ -814,7 +1037,8 @@ app.post(
       const job =
         await prisma.job.findUnique({
           where: {
-            id: jobId,
+            id:
+              jobId,
           },
         });
 
@@ -861,7 +1085,10 @@ app.post(
           ...saved.job,
 
           skills:
-            saved.job.skills
+            String(
+              saved.job.skills ||
+              ""
+            )
               .split(",")
               .map(
                 (skill) =>
@@ -905,6 +1132,18 @@ app.delete(
           req.params.jobId
         );
 
+      if (
+        !Number.isInteger(
+          jobId
+        ) ||
+        jobId <= 0
+      ) {
+        return res.status(400).json({
+          message:
+            "Invalid job ID",
+        });
+      }
+
       const existing =
         await prisma.savedJob.findUnique({
           where: {
@@ -927,7 +1166,8 @@ app.delete(
 
       await prisma.savedJob.delete({
         where: {
-          id: existing.id,
+          id:
+            existing.id,
         },
       });
 
@@ -973,29 +1213,38 @@ app.get(
           },
 
           orderBy: {
-            appliedAt: "desc",
+            appliedAt:
+              "desc",
           },
         });
 
       res.json(
-        rows.map((row) => ({
-          ...row,
+        rows.map(
+          (row) => ({
+            ...row,
 
-          job: row.job
-            ? {
-                ...row.job,
+            job:
+              row.job
+                ? {
+                    ...row.job,
 
-                skills:
-                  row.job.skills
-                    .split(",")
-                    .map(
-                      (skill) =>
-                        skill.trim()
-                    )
-                    .filter(Boolean),
-              }
-            : null,
-        }))
+                    skills:
+                      String(
+                        row.job.skills ||
+                        ""
+                      )
+                        .split(",")
+                        .map(
+                          (skill) =>
+                            skill.trim()
+                        )
+                        .filter(
+                          Boolean
+                        ),
+                  }
+                : null,
+          })
+        )
       );
 
     } catch (err) {
@@ -1078,14 +1327,18 @@ app.get(
                 ...application.job,
 
                 skills:
-                  application.job
-                    .skills
+                  String(
+                    application.job.skills ||
+                    ""
+                  )
                     .split(",")
                     .map(
                       (skill) =>
                         skill.trim()
                     )
-                    .filter(Boolean),
+                    .filter(
+                      Boolean
+                    ),
               }
             : null,
       });
@@ -1343,9 +1596,7 @@ app.put(
   "/api/profile",
   auth,
   async (req, res) => {
-
     try {
-
       const {
         name,
         degree,
@@ -1355,115 +1606,63 @@ app.put(
         skills,
         projects,
         resumeUrl,
-      } = req.body;
+      } = req.body || {};
 
-      const profile =
-        await prisma.user.update({
-          where: {
-            id:
-              req.user.id,
+      const cleanName = String(name || "").trim();
+      const cleanDegree = String(degree || "").trim();
+      const cleanUniversity = String(university || "").trim();
+      const cleanGpa = String(gpa || "").trim();
+      const cleanResumeUrl = resumeUrl
+        ? String(resumeUrl).trim()
+        : null;
+
+      const cleanSkills = Array.isArray(skills)
+        ? skills
+            .map(skill => String(skill || "").trim())
+            .filter(Boolean)
+        : [];
+
+      const cleanProjects = Array.isArray(projects)
+        ? projects
+            .map(project => ({
+              title: String(project?.title || "").trim(),
+              description: String(project?.description || "").trim(),
+            }))
+            .filter(project => project.title && project.description)
+        : [];
+
+      const profile = await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          name: cleanName,
+          degree: cleanDegree,
+          university: cleanUniversity,
+          graduationYear: Number(graduationYear) || 2025,
+          gpa: cleanGpa,
+          resumeUrl: cleanResumeUrl,
+          skills: {
+            deleteMany: {},
+            create: cleanSkills.map(name => ({ name })),
           },
-
-          data: {
-
-            name,
-
-            degree,
-
-            university,
-
-            graduationYear:
-              Number(
-                graduationYear
-              ) || 2025,
-
-            gpa,
-
-            resumeUrl,
-
-            skills:
-              Array.isArray(
-                skills
-              )
-                ? {
-
-                    deleteMany: {},
-
-                    create:
-                      skills
-
-                        .map(
-                          (name) =>
-                            String(
-                              name
-                            ).trim()
-                        )
-
-                        .filter(
-                          Boolean
-                        )
-
-                        .map(
-                          (name) => ({
-                            name,
-                          })
-                        ),
-                  }
-
-                : undefined,
-
-            projects:
-              Array.isArray(
-                projects
-              )
-                ? {
-
-                    deleteMany: {},
-
-                    create:
-                      projects
-
-                        .filter(
-                          (project) =>
-                            project?.title &&
-                            project?.description
-                        )
-
-                        .map(
-                          (project) => ({
-                            title:
-                              String(
-                                project.title
-                              ).trim(),
-
-                            description:
-                              String(
-                                project.description
-                              ).trim(),
-                          })
-                        ),
-                  }
-
-                : undefined,
+          projects: {
+            deleteMany: {},
+            create: cleanProjects.map(project => ({
+              title: project.title,
+              description: project.description,
+            })),
           },
+        },
+        include: {
+          skills: true,
+          projects: true,
+        },
+      });
 
-          include: {
-            skills: true,
-            projects: true,
-          },
-        });
-
-      res.json(
-        profile
-      );
-
+      res.json(profile);
     } catch (err) {
-
-      console.error(err);
-
+      console.error("Profile update error:", err);
       res.status(500).json({
-        message:
-          "Unable to save profile",
+        message: "Unable to save profile",
       });
     }
   }
@@ -1541,159 +1740,6 @@ app.patch(
       res.status(500).json({
         message:
           "Unable to update notifications",
-      });
-    }
-  }
-);
-
-/* =========================
-   AI JOB MATCHING
-========================= */
-
-app.get(
-  "/api/jobs/recommended",
-  auth,
-  async (req, res) => {
-
-    try {
-
-      const profile =
-        await prisma.user.findUnique({
-          where: {
-            id:
-              req.user.id,
-          },
-
-          include: {
-            skills: true,
-          },
-        });
-
-      if (!profile) {
-        return res.status(404).json({
-          message:
-            "Profile not found",
-        });
-      }
-
-      const userSkills =
-        profile.skills
-
-          .map(
-            (skill) =>
-              skill.name
-                .trim()
-                .toLowerCase()
-          )
-
-          .filter(
-            Boolean
-          );
-
-      const jobs =
-        await prisma.job.findMany({
-          orderBy: {
-            createdAt:
-              "desc",
-          },
-        });
-
-      const recommendedJobs =
-        jobs.map((job) => {
-
-          const jobSkills =
-            job.skills
-
-              .split(",")
-
-              .map(
-                (skill) =>
-                  skill.trim()
-              )
-
-              .filter(
-                Boolean
-              );
-
-          const matchingSkills =
-            jobSkills.filter(
-              (skill) =>
-                userSkills.includes(
-                  skill.toLowerCase()
-                )
-            );
-
-          const missingSkills =
-            jobSkills.filter(
-              (skill) =>
-                !userSkills.includes(
-                  skill.toLowerCase()
-                )
-            );
-
-          const matchPercentage =
-            jobSkills.length === 0
-              ? 0
-              : Math.round(
-                  (
-                    matchingSkills.length /
-                    jobSkills.length
-                  ) * 100
-                );
-
-          return {
-
-            ...job,
-
-            skills:
-              jobSkills,
-
-            matchPercentage,
-
-            matchingSkills,
-
-            missingSkills,
-          };
-        });
-
-      recommendedJobs.sort(
-        (a, b) => {
-
-          if (
-            b.matchPercentage !==
-            a.matchPercentage
-          ) {
-            return (
-              b.matchPercentage -
-              a.matchPercentage
-            );
-          }
-
-          return (
-            new Date(
-              b.createdAt
-            ) -
-            new Date(
-              a.createdAt
-            )
-          );
-        }
-      );
-
-      res.json(
-        recommendedJobs
-      );
-
-    } catch (err) {
-
-      console.error(
-        "Job recommendation error:",
-        err
-      );
-
-      res.status(500).json({
-        message:
-          "Unable to generate job recommendations",
       });
     }
   }

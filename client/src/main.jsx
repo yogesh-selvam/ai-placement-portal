@@ -33,6 +33,41 @@ function savedJobId(item) {
   return Number(item?.jobId ?? item?.job?.id ?? item?.id);
 }
 
+function buildRecommendedJobs(jobs, profile) {
+  const userSkills = (profile?.skills || [])
+    .map(skill => String(skill?.name || skill || "").trim().toLowerCase())
+    .filter(Boolean);
+
+  return (Array.isArray(jobs) ? jobs : [])
+    .map(job => {
+      const jobSkills = (Array.isArray(job?.skills)
+        ? job.skills
+        : String(job?.skills || "").split(","))
+        .map(skill => String(skill).trim())
+        .filter(Boolean);
+
+      const matchingSkills = jobSkills.filter(skill =>
+        userSkills.includes(skill.toLowerCase())
+      );
+
+      const missingSkills = jobSkills.filter(skill =>
+        !userSkills.includes(skill.toLowerCase())
+      );
+
+      const matchPercentage = jobSkills.length
+        ? Math.round((matchingSkills.length / jobSkills.length) * 100)
+        : 0;
+
+      return { ...job, skills: jobSkills, matchingSkills, missingSkills, matchPercentage };
+    })
+    .sort((a, b) => {
+      if (b.matchPercentage !== a.matchPercentage) {
+        return b.matchPercentage - a.matchPercentage;
+      }
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
+}
+
 
 
 
@@ -242,16 +277,11 @@ function Home({setPage, user, setSelectedJob}) {
     let active = true;
 
     async function loadDashboard() {
-      try {
-        setLoading(true);
-        setError("");
-        const [
-          jobsData,
-          recommendedData,
-          applicationsData,
-          profileData,
-          savedJobsData,
-        ] = await Promise.all([
+      setLoading(true);
+      setError("");
+
+      const [jobsResult, recommendedResult, applicationsResult, profileResult, savedResult] =
+        await Promise.allSettled([
           jobsApi.getAll(),
           jobsApi.getRecommended(),
           applicationsApi.getAll(),
@@ -259,17 +289,30 @@ function Home({setPage, user, setSelectedJob}) {
           savedJobsApi.getAll(),
         ]);
 
-        if (!active) return;
-        setJobs(Array.isArray(jobsData) ? jobsData : []);
-        setRecommendedJobs(Array.isArray(recommendedData) ? recommendedData : []);
-        setApplications(Array.isArray(applicationsData) ? applicationsData : []);
-        setProfile(profileData);
-        setSavedJobs(normalizeSavedJobs(savedJobsData));
-      } catch (err) {
-        if (active) setError(err.message || "Unable to load dashboard.");
-      } finally {
-        if (active) setLoading(false);
+      if (!active) return;
+
+      const jobsData = jobsResult.status === "fulfilled" ? jobsResult.value : [];
+      const profileData = profileResult.status === "fulfilled" ? profileResult.value : null;
+      const applicationsData = applicationsResult.status === "fulfilled" ? applicationsResult.value : [];
+      const savedJobsData = savedResult.status === "fulfilled" ? savedResult.value : [];
+      const normalizedJobs = Array.isArray(jobsData) ? jobsData : [];
+      const apiRecommended = recommendedResult.status === "fulfilled" ? recommendedResult.value : [];
+      const normalizedRecommended = Array.isArray(apiRecommended) && apiRecommended.length
+        ? apiRecommended
+        : buildRecommendedJobs(normalizedJobs, profileData);
+
+      setJobs(normalizedJobs);
+      setRecommendedJobs(normalizedRecommended);
+      setApplications(Array.isArray(applicationsData) ? applicationsData : []);
+      setProfile(profileData);
+      setSavedJobs(normalizeSavedJobs(savedJobsData));
+
+      if (jobsResult.status === "rejected") {
+        console.error("Jobs API error:", jobsResult.reason);
+        setError(jobsResult.reason?.message || "Unable to load jobs.");
       }
+
+      setLoading(false);
     }
 
     loadDashboard();
@@ -279,7 +322,6 @@ function Home({setPage, user, setSelectedJob}) {
     };
 
     document.addEventListener("visibilitychange", handleVisibility);
-
     return () => {
       active = false;
       document.removeEventListener("visibilitychange", handleVisibility);
@@ -290,17 +332,14 @@ function Home({setPage, user, setSelectedJob}) {
   const interviews = applications.filter(a => a.status === "INTERVIEW").length;
 
   const completion = profile
-    ? Math.min(
-        100,
-        20 +
+    ? Math.min(100, 20 +
         (profile.name ? 15 : 0) +
         (profile.degree ? 15 : 0) +
         (profile.university ? 10 : 0) +
         (profile.graduationYear ? 10 : 0) +
         (profile.gpa ? 10 : 0) +
         (profile.skills?.length ? 10 : 0) +
-        (profile.projects?.length ? 10 : 0)
-      )
+        (profile.projects?.length ? 10 : 0))
     : 0;
 
   return <Layout page="home" setPage={setPage} onProfile={()=>setPage("profile")}>
@@ -321,12 +360,7 @@ function Home({setPage, user, setSelectedJob}) {
 
       <div className="search-box">
         <Search/>
-        <input
-          placeholder="Search for jobs, skills, or locations..."
-          onKeyDown={e => {
-            if (e.key === "Enter") setPage("jobs");
-          }}
-        />
+        <input placeholder="Search for jobs, skills, or locations..." onKeyDown={e => e.key === "Enter" && setPage("jobs")}/>
         <button className="primary" onClick={()=>setPage("jobs")}>Search</button>
       </div>
 
@@ -342,33 +376,28 @@ function Home({setPage, user, setSelectedJob}) {
         <span><Sparkles size={16}/> AI Matched</span>
       </div>
 
-      {loading ? (
-        <p>Loading recommended jobs...</p>
-      ) : recommendedJobs.length === 0 ? (
+      {loading ? <p>Loading recommended jobs...</p> : recommendedJobs.length === 0 ? (
         <p>No matching jobs available yet. Add technical skills to your profile to improve recommendations.</p>
       ) : (
         <div className="job-grid">
-          {recommendedJobs.slice(0, 2).map(j =>
+          {recommendedJobs.slice(0, 2).map(j => (
             <JobCard
               key={j.id}
               job={j}
               compact
               initialSaved={savedJobs.some(item => savedJobId(item) === Number(j.id))}
-              onView={() => {
-                setSelectedJob?.(j);
-                setPage("job-detail");
-              }}
+              onView={() => { setSelectedJob?.(j); setPage("job-detail"); }}
               onSavedChange={(saved) => setSavedJobs(prev =>
                 saved
                   ? [...prev, { jobId: j.id, job: j }]
                   : prev.filter(item => savedJobId(item) !== Number(j.id))
               )}
             />
-          )}
+          ))}
         </div>
       )}
     </main>
-  </Layout>
+  </Layout>;
 }
 function Stat({icon,title,value,active}) { return <div className={"stat "+(active?"stat-active":"")}><div className="stat-label">{icon}{title}</div><strong>{value}</strong></div> }
 
@@ -820,471 +849,218 @@ function Applications({setPage}) {
 function Profile({setPage}) {
   const [profile, setProfile] = useState(null);
   const [form, setForm] = useState({
-    name: "",
-    degree: "",
-    university: "",
-    graduationYear: "",
-    gpa: "",
-    resumeUrl: "",
-    skills: [],
-    projects: [],
+    name: "", degree: "", university: "", graduationYear: "", gpa: "",
+    resumeUrl: "", skills: [], projects: [],
   });
+  const [editingSection, setEditingSection] = useState(null);
   const [newSkill, setNewSkill] = useState("");
   const [newProject, setNewProject] = useState({ title: "", description: "" });
-  const [editing, setEditing] = useState(false);
+  const [editingProject, setEditingProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
+  function makeForm(data) {
+    return {
+      name: data?.name || "",
+      degree: data?.degree || "",
+      university: data?.university || "",
+      graduationYear: data?.graduationYear || "",
+      gpa: data?.gpa || "",
+      resumeUrl: data?.resumeUrl || "",
+      skills: (data?.skills || []).map(skill => typeof skill === "string" ? skill : skill?.name).filter(Boolean),
+      projects: (data?.projects || []).map(project => ({ title: project?.title || "", description: project?.description || "" })),
+    };
+  }
 
   async function loadProfile() {
     try {
-      setLoading(true);
-      setError("");
+      setLoading(true); setError("");
       const data = await profileApi.get();
-
       setProfile(data);
-      setForm({
-        name: data.name || "",
-        degree: data.degree || "",
-        university: data.university || "",
-        graduationYear: data.graduationYear || "",
-        gpa: data.gpa || "",
-        resumeUrl: data.resumeUrl || "",
-        skills: (data.skills || []).map(skill => skill.name),
-        projects: (data.projects || []).map(project => ({
-          title: project.title,
-          description: project.description,
-        })),
-      });
+      setForm(makeForm(data));
     } catch (err) {
       setError(err.message || "Unable to load profile.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadProfile(); }, []);
+
+  function startEdit(section) {
+    setEditingSection(section);
+    setError(""); setSuccess("");
   }
 
   function updateField(field, value) {
     setForm(prev => ({ ...prev, [field]: value }));
-    setSuccess("");
-  }
-
-  function addSkill() {
-    const skill = newSkill.trim();
-    if (!skill) return;
-
-    if (!form.skills.some(item => item.toLowerCase() === skill.toLowerCase())) {
-      setForm(prev => ({
-        ...prev,
-        skills: [...prev.skills, skill],
-      }));
-    }
-
-    setNewSkill("");
-    setSuccess("");
-  }
-
-  function removeSkill(skillToRemove) {
-    setForm(prev => ({
-      ...prev,
-      skills: prev.skills.filter(skill => skill !== skillToRemove),
-    }));
-    setSuccess("");
-  }
-
-  function addProject() {
-    const title = newProject.title.trim();
-    const description = newProject.description.trim();
-
-    if (!title || !description) return;
-
-    setForm(prev => ({
-      ...prev,
-      projects: [...prev.projects, { title, description }],
-    }));
-
-    setNewProject({ title: "", description: "" });
-    setSuccess("");
-  }
-
-  function removeProject(index) {
-    setForm(prev => ({
-      ...prev,
-      projects: prev.projects.filter((_, i) => i !== index),
-    }));
-    setSuccess("");
+    setError(""); setSuccess("");
   }
 
   function cancelEdit() {
-    if (profile) {
-      setForm({
-        name: profile.name || "",
-        degree: profile.degree || "",
-        university: profile.university || "",
-        graduationYear: profile.graduationYear || "",
-        gpa: profile.gpa || "",
-        resumeUrl: profile.resumeUrl || "",
-        skills: (profile.skills || []).map(skill => skill.name),
-        projects: (profile.projects || []).map(project => ({
-          title: project.title,
-          description: project.description,
-        })),
-      });
-    }
-
-    setEditing(false);
-    setError("");
-    setSuccess("");
+    setForm(makeForm(profile));
+    setEditingSection(null);
+    setNewSkill("");
+    setNewProject({ title: "", description: "" });
+    setEditingProject(null);
+    setError(""); setSuccess("");
   }
 
-  async function saveProfile() {
+  async function saveSection() {
     try {
-      setSaving(true);
-      setError("");
-      setSuccess("");
-
-      const updated = await profileApi.update({
+      setSaving(true); setError(""); setSuccess("");
+      const payload = {
         name: form.name.trim(),
         degree: form.degree.trim(),
         university: form.university.trim(),
         graduationYear: Number(form.graduationYear) || 2025,
         gpa: form.gpa.trim(),
         resumeUrl: form.resumeUrl.trim() || null,
-        skills: form.skills,
-        projects: form.projects,
-      });
+        skills: form.skills.map(s => String(s).trim()).filter(Boolean),
+        projects: form.projects
+          .map(p => ({ title: String(p.title || "").trim(), description: String(p.description || "").trim() }))
+          .filter(p => p.title && p.description),
+      };
 
+      const updated = await profileApi.update(payload);
       setProfile(updated);
-      setForm({
-        name: updated.name || "",
-        degree: updated.degree || "",
-        university: updated.university || "",
-        graduationYear: updated.graduationYear || "",
-        gpa: updated.gpa || "",
-        resumeUrl: updated.resumeUrl || "",
-        skills: (updated.skills || []).map(skill => skill.name),
-        projects: (updated.projects || []).map(project => ({
-          title: project.title,
-          description: project.description,
-        })),
-      });
-
-      setEditing(false);
-      setSuccess("Profile saved successfully!");
+      setForm(makeForm(updated));
+      setEditingSection(null);
+      setEditingProject(null);
+      setNewSkill("");
+      setNewProject({ title: "", description: "" });
+      setSuccess("Changes saved successfully!");
     } catch (err) {
-      setError(err.message || "Unable to save profile.");
-    } finally {
-      setSaving(false);
+      console.error("Profile save error:", err);
+      setError(err.message || "Unable to save changes.");
+    } finally { setSaving(false); }
+  }
+
+  function addSkill() {
+    const skill = newSkill.trim();
+    if (!skill) return;
+    if (form.skills.some(item => item.toLowerCase() === skill.toLowerCase())) {
+      setError("Skill already added."); return;
     }
+    setForm(prev => ({ ...prev, skills: [...prev.skills, skill] }));
+    setNewSkill(""); setError(""); setSuccess("");
   }
 
-  const completion = form
-    ? Math.min(
-        100,
-        20 +
-          (form.name ? 15 : 0) +
-          (form.degree ? 15 : 0) +
-          (form.university ? 10 : 0) +
-          (form.graduationYear ? 10 : 0) +
-          (form.gpa ? 10 : 0) +
-          (form.skills.length ? 10 : 0) +
-          (form.projects.length ? 10 : 0)
-      )
-    : 0;
-
-  if (loading) {
-    return (
-      <Layout page="home" setPage={setPage} onProfile={() => setPage("profile")}>
-        <main className="container profile">
-          <p>Loading profile...</p>
-        </main>
-      </Layout>
-    );
+  function removeSkill(skill) {
+    setForm(prev => ({ ...prev, skills: prev.skills.filter(item => item !== skill) }));
+    setSuccess("");
   }
 
-  if (error && !profile) {
-    return (
-      <Layout page="home" setPage={setPage} onProfile={() => setPage("profile")}>
-        <main className="container profile">
-          <div className="auth-error">{error}</div>
-          <button className="primary" onClick={loadProfile}>Try Again</button>
-        </main>
-      </Layout>
-    );
+  function addProject() {
+    const title = newProject.title.trim();
+    const description = newProject.description.trim();
+    if (!title || !description) { setError("Enter both project title and description."); return; }
+    setForm(prev => ({ ...prev, projects: [...prev.projects, { title, description }] }));
+    setNewProject({ title: "", description: "" }); setError(""); setSuccess("");
   }
 
-  return (
-    <Layout page="home" setPage={setPage} onProfile={() => setPage("profile")}>
-      <main className="container profile">
+  function removeProject(index) {
+    setForm(prev => ({ ...prev, projects: prev.projects.filter((_, i) => i !== index) }));
+    if (editingProject === index) setEditingProject(null);
+  }
 
-        <div className="profile-card">
-          <div className="profile-cover"></div>
+  function editProject(index) {
+    setEditingProject(index);
+    setEditingSection("projects");
+    setSuccess(""); setError("");
+  }
 
-          <div className="avatar profile-avatar">
-            {(form.name || "A").charAt(0).toUpperCase()}
-          </div>
+  function updateProject(index, field, value) {
+    setForm(prev => ({
+      ...prev,
+      projects: prev.projects.map((project, i) => i === index ? { ...project, [field]: value } : project),
+    }));
+    setSuccess(""); setError("");
+  }
 
-          <h1>{form.name || "Your Name"}</h1>
-          <p>{form.degree || "Degree not added"}</p>
+  const completion = Math.min(100, 20 +
+    (form.name ? 15 : 0) + (form.degree ? 15 : 0) + (form.university ? 10 : 0) +
+    (form.graduationYear ? 10 : 0) + (form.gpa ? 10 : 0) +
+    (form.skills.length ? 10 : 0) + (form.projects.length ? 10 : 0));
 
-          <span>
-            <GraduationCap/>
-            {form.university || "University not added"}
-          </span>
+  if (loading) return <Layout page="profile" setPage={setPage} onProfile={() => setPage("profile")}><main className="container profile"><p>Loading profile...</p></main></Layout>;
 
-          <div className="profile-progress">
-            <b>
-              Profile Completion <strong>{completion}%</strong>
-            </b>
+  if (!profile) return <Layout page="profile" setPage={setPage} onProfile={() => setPage("profile")}><main className="container profile"><div className="auth-error">{error || "Unable to load profile."}</div><button className="primary" onClick={loadProfile}>Try Again</button></main></Layout>;
 
-            <div className="progress">
-              <i style={{ width: `${completion}%` }}/>
-            </div>
-          </div>
-        </div>
+  const editing = section => editingSection === section;
 
-        <div className="profile-toolbar">
-          {!editing ? (
-            <button className="primary" onClick={() => {
-              setEditing(true);
-              setSuccess("");
-              setError("");
-            }}>
-              <Pencil size={17}/> Edit Profile
-            </button>
-          ) : (
-            <div className="profile-edit-actions">
-              <button className="secondary" onClick={cancelEdit} disabled={saving}>
-                Cancel
-              </button>
+  return <Layout page="profile" setPage={setPage} onProfile={() => setPage("profile")}>
+    <main className="container profile">
+      <div className="profile-card">
+        <div className="profile-cover"></div>
+        <div className="avatar profile-avatar">{(form.name || "A").charAt(0).toUpperCase()}</div>
+        <h1>{form.name || "Your Name"}</h1>
+        <p>{form.degree || "Degree not added"}</p>
+        <span><GraduationCap/> {form.university || "University not added"}</span>
+        <div className="profile-progress"><b>Profile Completion <strong>{completion}%</strong></b><div className="progress"><i style={{width:`${completion}%`}}/></div></div>
+      </div>
 
-              <button className="primary" onClick={saveProfile} disabled={saving}>
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          )}
-        </div>
+      {error && <div className="auth-error">{error}</div>}
+      {success && <div className="profile-success">{success}</div>}
 
-        {error && <div className="auth-error">{error}</div>}
-        {success && <div className="profile-success">{success}</div>}
+      <div className="profile-content">
+        <Panel title="Personal Information" icon={<UserCircle/>} editing={editing("personal")} onEdit={() => startEdit("personal")}>
+          {editing("personal") ? <div className="profile-form-grid">
+            <div className="form-field"><label>Full Name</label><input value={form.name} onChange={e=>updateField("name",e.target.value)} /></div>
+          </div> : <div className="education"><div><b>{form.name || "Name not added"}</b><span>Profile name</span></div></div>}
+          {editing("personal") && <SectionActions saving={saving} onCancel={cancelEdit} onSave={saveSection}/>}
+        </Panel>
 
-        <div className="profile-content">
+        <Panel title="Education" icon={<GraduationCap/>} editing={editing("education")} onEdit={() => startEdit("education")}>
+          {editing("education") ? <div className="profile-form-grid">
+            <div className="form-field"><label>Degree</label><input value={form.degree} onChange={e=>updateField("degree",e.target.value)} placeholder="B.Tech in Computer Science" /></div>
+            <div className="form-field"><label>University</label><input value={form.university} onChange={e=>updateField("university",e.target.value)} placeholder="University name" /></div>
+            <div className="form-field"><label>Graduation Year</label><input type="number" value={form.graduationYear} onChange={e=>updateField("graduationYear",e.target.value)} /></div>
+            <div className="form-field"><label>GPA</label><input value={form.gpa} onChange={e=>updateField("gpa",e.target.value)} placeholder="3.8/4.0" /></div>
+          </div> : <div className="education"><div><b>{form.university || "University not added"}</b><span>{form.degree || "Degree not added"}</span></div><div><small>Class of {form.graduationYear || "—"}</small><b>GPA: {form.gpa || "—"}</b></div></div>}
+          {editing("education") && <SectionActions saving={saving} onCancel={cancelEdit} onSave={saveSection}/>}
+        </Panel>
 
-          {editing && (
-            <Panel title="Personal Information" icon={<UserCircle/>}>
-              <div className="profile-form-grid">
+        <Panel title="Technical Skills" icon={<Code2/>} editing={editing("skills")} onEdit={() => startEdit("skills")}>
+          <div className="chips big">{form.skills.length === 0 ? <p>No skills added yet.</p> : form.skills.map(skill => <span key={skill}>{skill}{editing("skills") && <button type="button" onClick={()=>removeSkill(skill)} title={`Remove ${skill}`}>×</button>}</span>)}</div>
+          {editing("skills") && <><div className="inline-add"><input value={newSkill} onChange={e=>setNewSkill(e.target.value)} onKeyDown={e=>e.key === "Enter" && addSkill()} placeholder="Add a skill e.g. Java"/><button className="secondary" onClick={addSkill}>+ Add Skill</button></div><SectionActions saving={saving} onCancel={cancelEdit} onSave={saveSection}/></>}
+        </Panel>
 
-                <div className="form-field">
-                  <label>Full Name</label>
-                  <input
-                    value={form.name}
-                    onChange={e => updateField("name", e.target.value)}
-                    placeholder="Enter your name"
-                  />
-                </div>
+        <Panel title="Projects" icon={<BriefcaseBusiness/>} editing={editing("projects")} onEdit={() => startEdit("projects")}>
+          <div className="projects">{form.projects.length === 0 ? <p>No projects added yet.</p> : form.projects.map((project,index) => <div className="project" key={`${project.title}-${index}`}>
+            {editing("projects") && editingProject === index ? <><input value={project.title} onChange={e=>updateProject(index,"title",e.target.value)} placeholder="Project title"/><textarea value={project.description} onChange={e=>updateProject(index,"description",e.target.value)} rows={3} placeholder="Project description"/></> : <><b>{project.title}</b><p>{project.description}</p></>}
+            {editing("projects") && <div><button type="button" className="text-btn" onClick={()=>editProject(index)}>{editingProject === index ? "Editing" : "Edit"}</button><button type="button" className="text-btn" onClick={()=>removeProject(index)}>Remove</button></div>}
+          </div>)}</div>
+          {editing("projects") && <><div className="project-add"><input value={newProject.title} onChange={e=>setNewProject(prev=>({...prev,title:e.target.value}))} placeholder="Project title"/><textarea value={newProject.description} onChange={e=>setNewProject(prev=>({...prev,description:e.target.value}))} rows={3} placeholder="Project description"/><button className="secondary" onClick={addProject}>+ Add Project</button></div><SectionActions saving={saving} onCancel={cancelEdit} onSave={saveSection}/></>}
+        </Panel>
 
-                <div className="form-field">
-                  <label>Degree</label>
-                  <input
-                    value={form.degree}
-                    onChange={e => updateField("degree", e.target.value)}
-                    placeholder="B.Tech in Computer Science"
-                  />
-                </div>
+        <Panel title="Resume" icon={<FileText/>} editing={editing("resume")} onEdit={() => startEdit("resume")}>
+          {editing("resume") ? <div className="form-field"><label>Resume URL</label><input type="url" value={form.resumeUrl} onChange={e=>updateField("resumeUrl",e.target.value)} placeholder="https://..."/></div> : <div className="resume-file">{form.resumeUrl || "No resume uploaded"}</div>}
+          {form.resumeUrl && !editing("resume") && <a className="primary wide" href={form.resumeUrl} target="_blank" rel="noreferrer"><Eye size={17}/> View Resume</a>}
+          {editing("resume") && <SectionActions saving={saving} onCancel={cancelEdit} onSave={saveSection}/>}
+        </Panel>
 
-                <div className="form-field">
-                  <label>University</label>
-                  <input
-                    value={form.university}
-                    onChange={e => updateField("university", e.target.value)}
-                    placeholder="University name"
-                  />
-                </div>
-
-                <div className="form-field">
-                  <label>Graduation Year</label>
-                  <input
-                    type="number"
-                    value={form.graduationYear}
-                    onChange={e => updateField("graduationYear", e.target.value)}
-                    placeholder="2025"
-                  />
-                </div>
-
-                <div className="form-field">
-                  <label>GPA</label>
-                  <input
-                    value={form.gpa}
-                    onChange={e => updateField("gpa", e.target.value)}
-                    placeholder="3.8/4.0"
-                  />
-                </div>
-
-                <div className="form-field">
-                  <label>Resume URL</label>
-                  <input
-                    type="url"
-                    value={form.resumeUrl}
-                    onChange={e => updateField("resumeUrl", e.target.value)}
-                    placeholder="https://..."
-                  />
-                </div>
-
-              </div>
-            </Panel>
-          )}
-
-          <Panel title="Education" icon={<GraduationCap/>}>
-            <div className="education">
-              <div>
-                <b>{form.university || "University not added"}</b>
-                <span>{form.degree || "Degree not added"}</span>
-              </div>
-
-              <div>
-                <small>Class of {form.graduationYear || "—"}</small>
-                <b>GPA: {form.gpa || "—"}</b>
-              </div>
-            </div>
-          </Panel>
-
-          <Panel title="Technical Skills" icon={<Code2/>}>
-            <div className="chips big">
-              {form.skills.length === 0 ? (
-                <p>No skills added yet.</p>
-              ) : (
-                form.skills.map(skill => (
-                  <span key={skill}>
-                    {skill}
-                    {editing && (
-                      <button
-                        type="button"
-                        onClick={() => removeSkill(skill)}
-                        title={`Remove ${skill}`}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </span>
-                ))
-              )}
-            </div>
-
-            {editing && (
-              <div className="inline-add">
-                <input
-                  value={newSkill}
-                  onChange={e => setNewSkill(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && addSkill()}
-                  placeholder="Add a skill e.g. Java"
-                />
-                <button className="secondary" onClick={addSkill}>
-                  + Add Skill
-                </button>
-              </div>
-            )}
-          </Panel>
-
-          <Panel title="Projects" icon={<BriefcaseBusiness/>}>
-            <div className="projects">
-              {form.projects.length === 0 ? (
-                <p>No projects added yet.</p>
-              ) : (
-                form.projects.map((project, index) => (
-                  <div className="project" key={`${project.title}-${index}`}>
-                    <b>{project.title}</b>
-                    <p>{project.description}</p>
-
-                    {editing && (
-                      <button
-                        type="button"
-                        className="text-btn"
-                        onClick={() => removeProject(index)}
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            {editing && (
-              <div className="project-add">
-                <input
-                  value={newProject.title}
-                  onChange={e =>
-                    setNewProject(prev => ({ ...prev, title: e.target.value }))
-                  }
-                  placeholder="Project title"
-                />
-
-                <textarea
-                  value={newProject.description}
-                  onChange={e =>
-                    setNewProject(prev => ({ ...prev, description: e.target.value }))
-                  }
-                  placeholder="Project description"
-                  rows={3}
-                />
-
-                <button className="secondary" onClick={addProject}>
-                  + Add Project
-                </button>
-              </div>
-            )}
-          </Panel>
-
-          <div className="resume-card">
-            <h2><FileText/> Resume</h2>
-
-            <div className="resume-file">
-              {form.resumeUrl || "No resume uploaded"}
-            </div>
-
-            {form.resumeUrl ? (
-              <a
-                className="primary wide"
-                href={form.resumeUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Eye size={17}/> View Resume
-              </a>
-            ) : editing ? (
-              <button
-                className="secondary wide"
-                onClick={() => document.querySelector(".resume-card")?.scrollIntoView({ behavior: "smooth" })}
-              >
-                Add Resume URL above
-              </button>
-            ) : (
-              <button className="secondary wide" disabled>
-                No Resume
-              </button>
-            )}
-          </div>
-
-          <div className="ai-profile">
-            <Sparkles/>
-            <h3>AI Profile Insight</h3>
-            <p>
-              Keep your skills, projects, education, and resume updated to
-              improve job matching accuracy.
-            </p>
-          </div>
-
-        </div>
-      </main>
-    </Layout>
-  );
+        <div className="ai-profile"><Sparkles/><h3>AI Profile Insight</h3><p>Keep your skills, projects, education, and resume updated to improve job matching accuracy.</p></div>
+      </div>
+    </main>
+  </Layout>;
 }
-function Panel({title,icon,children}){return <section className="panel"><h2>{icon}{title}<Pencil size={18}/></h2>{children}</section>}
-function Project({title,text}){return <div className="project"><b>{title}</b><p>{text}</p><a><Link2 size={14}/> View Project</a></div>}
+
+function SectionActions({saving,onCancel,onSave}) {
+  return <div className="profile-edit-actions" style={{marginTop:16,display:"flex",gap:10}}><button className="secondary" onClick={onCancel} disabled={saving}>Cancel</button><button className="primary" onClick={onSave} disabled={saving}>{saving ? "Saving..." : "Save Changes"}</button></div>;
+}
+
+function Panel({title,icon,children,editing,onEdit}) {
+  return <section className="panel">
+    <div className="panel-title-row" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+      <h2 style={{display:"flex",alignItems:"center",gap:8}}>{icon}{title}</h2>
+      {!editing && <button type="button" className="panel-edit-btn" onClick={onEdit} title={`Edit ${title}`} aria-label={`Edit ${title}`}><Pencil size={18}/></button>}
+    </div>
+    {children}
+  </section>;
+}
+
+function Project({title,text}) { return <div className="project"><b>{title}</b><p>{text}</p><a><Link2 size={14}/> View Project</a></div>; }
 
 function SavedJobs({setPage,setSelectedJob}) {
   const [rows,setRows]=useState([]);
