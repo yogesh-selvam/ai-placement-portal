@@ -1,3 +1,5 @@
+console.log("🔥 MAIN JSX LOADED");
+
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -1571,3 +1573,103 @@ function Notification({
     </div>
   );
 }
+
+function App() {
+  const [page, setPage] = useState("home");
+  const [user, setUser] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("cc_token");
+
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    profileApi.get()
+      .then(profile => {
+        setUser(profile || {});
+      })
+      .catch(() => {
+        localStorage.removeItem("cc_token");
+        setUser(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  function handleLogin(loggedInUser) {
+    setUser(loggedInUser || {});
+    setPage("home");
+  }
+
+  if (loading) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <h1>CareerConnect AI</h1>
+          <p>Loading your placement portal...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  switch (page) {
+    case "jobs":
+      return (
+        <Jobs
+          setPage={setPage}
+          setSelectedJob={setSelectedJob}
+        />
+      );
+
+    case "job-detail":
+      return (
+        <JobDetail
+          setPage={setPage}
+          job={selectedJob}
+          refreshApplications={() => {}}
+        />
+      );
+
+    case "applications":
+      return <Applications setPage={setPage} />;
+
+    case "saved-jobs":
+      return (
+        <SavedJobs
+          setPage={setPage}
+          setSelectedJob={setSelectedJob}
+        />
+      );
+
+    case "notifications":
+      return <Notifications setPage={setPage} />;
+
+    case "profile":
+      return <Profile setPage={setPage} />;
+
+    case "home":
+    default:
+      return (
+        <Home
+          setPage={setPage}
+          user={user}
+          setSelectedJob={setSelectedJob}
+        />
+      );
+  }
+}
+
+createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
