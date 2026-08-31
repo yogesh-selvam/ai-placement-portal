@@ -12,16 +12,19 @@ const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const smtpPort = Number(process.env.SMTP_PORT || 587);
+const smtpPort = Number(process.env.SMTP_PORT || 465);
 
 const transporter = nodemailer.createTransport({
   host: (process.env.SMTP_HOST || "smtp.gmail.com").trim(),
   port: smtpPort,
-  secure: smtpPort === 465,
+  secure: true,
   auth: {
     user: (process.env.SMTP_USER || "").trim(),
     pass: (process.env.SMTP_PASS || "").trim(),
   },
+  connectionTimeout: 20000,
+  greetingTimeout: 20000,
+  socketTimeout: 30000,
 });
 /* =========================
    CORS CONFIGURATION
