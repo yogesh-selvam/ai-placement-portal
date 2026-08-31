@@ -1,9 +1,9 @@
-import express from "express";
+﻿import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { PrismaClient } from "@prisma/client";
 
 dotenv.config();
@@ -12,10 +12,17 @@ const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const resend = new Resend(
-  (process.env.RESEND_API_KEY || "").trim()
-);
+const smtpPort = Number(process.env.SMTP_PORT || 587);
 
+const transporter = nodemailer.createTransport({
+  host: (process.env.SMTP_HOST || "smtp.gmail.com").trim(),
+  port: smtpPort,
+  secure: smtpPort === 465,
+  auth: {
+    user: (process.env.SMTP_USER || "").trim(),
+    pass: (process.env.SMTP_PASS || "").trim(),
+  },
+});
 /* =========================
    CORS CONFIGURATION
 ========================= */
@@ -140,17 +147,17 @@ function makeOtp() {
 }
 
 /* =========================
-   RESEND EMAIL
+   SMTP EMAIL / OTP
 ========================= */
 
 async function sendOtp(email, otp) {
-  const apiKey = (
-    process.env.RESEND_API_KEY || ""
-  ).trim();
+  const smtpUser = (process.env.SMTP_USER || "").trim();
+  const smtpPass = (process.env.SMTP_PASS || "").trim();
+  const smtpFrom = (process.env.SMTP_FROM || smtpUser).trim();
 
-  if (!apiKey) {
+  if (!smtpUser || !smtpPass) {
     throw new Error(
-      "RESEND_API_KEY is not configured on the server"
+      "SMTP_USER and SMTP_PASS are not configured on the server"
     );
   }
 
@@ -159,147 +166,41 @@ async function sendOtp(email, otp) {
     .toLowerCase();
 
   if (!normalizedEmail) {
-    throw new Error(
-      "Recipient email is missing"
-    );
+    throw new Error("Recipient email is missing");
   }
 
-  try {
-    console.log(
-      "======================================"
-    );
+  const info = await transporter.sendMail({
+    from: `"CareerConnect AI" <${smtpFrom}>`,
+    to: normalizedEmail,
+    subject: "CareerConnect AI - Your OTP",
+    text: `Your CareerConnect AI login OTP is ${otp}. This OTP expires in 10 minutes.`,
+    html: `
+      <div style="font-family:Arial,sans-serif;padding:25px">
+        <h2>CareerConnect AI</h2>
+        <p>Your login OTP is:</p>
 
-    console.log(
-      "Sending OTP email with Resend..."
-    );
+        <div style="
+          font-size:32px;
+          font-weight:bold;
+          letter-spacing:8px;
+          padding:20px;
+          background:#f4f2ff;
+          text-align:center;
+          border-radius:10px;
+        ">
+          ${otp}
+        </div>
 
-    console.log(
-      "OTP recipient:",
-      normalizedEmail
-    );
+        <p>This OTP expires in <strong>10 minutes</strong>.</p>
+        <p>If you did not request this OTP, ignore this email.</p>
+      </div>
+    `,
+  });
 
-    console.log(
-      "======================================"
-    );
+  console.log("OTP EMAIL SENT:", info.messageId);
 
-    const { data, error } =
-      await resend.emails.send({
-        from:
-          "CareerConnect AI <onboarding@resend.dev>",
-
-        to: [normalizedEmail],
-
-        subject:
-          "CareerConnect AI - Your OTP",
-
-        html: `
-          <div style="
-            font-family: Arial, sans-serif;
-            padding: 24px;
-            max-width: 600px;
-          ">
-
-            <h2 style="
-              margin-bottom: 20px;
-            ">
-              CareerConnect AI
-            </h2>
-
-            <p>
-              Your login OTP is:
-            </p>
-
-            <div style="
-              font-size: 32px;
-              font-weight: bold;
-              letter-spacing: 10px;
-              margin: 24px 0;
-            ">
-              ${otp}
-            </div>
-
-            <p>
-              This OTP expires in 10 minutes.
-            </p>
-
-            <p style="
-              color: #666;
-            ">
-              If you didn't request this OTP,
-              you can safely ignore this email.
-            </p>
-
-          </div>
-        `,
-      });
-
-    if (error) {
-      console.error(
-        "========== RESEND API ERROR =========="
-      );
-
-      console.error(
-        JSON.stringify(error, null, 2)
-      );
-
-      console.error(
-        "======================================"
-      );
-
-      throw new Error(
-        error.message ||
-        error.name ||
-        "Resend rejected the email"
-      );
-    }
-
-    if (!data?.id) {
-      console.error(
-        "Resend returned no email ID:",
-        data
-      );
-
-      throw new Error(
-        "Resend did not return an email ID"
-      );
-    }
-
-    console.log(
-      "OTP EMAIL SENT SUCCESSFULLY:",
-      data.id
-    );
-
-    return data;
-
-  } catch (error) {
-
-    console.error(
-      "========== OTP EMAIL ERROR =========="
-    );
-
-    console.error(
-      "Name:",
-      error?.name
-    );
-
-    console.error(
-      "Message:",
-      error?.message
-    );
-
-    console.error(
-      "Stack:",
-      error?.stack
-    );
-
-    console.error(
-      "====================================="
-    );
-
-    throw error;
-  }
+  return info;
 }
-
 /* =========================
    AUTH
 ========================= */
@@ -340,9 +241,9 @@ app.post(
       );
 
       console.log(
-        "Resend configured:",
+        "SMTP configured:",
         Boolean(
-          process.env.RESEND_API_KEY
+          (process.env.SMTP_USER && process.env.SMTP_PASS)
         )
       );
 
@@ -1841,7 +1742,7 @@ app.post(
         "your current skills";
 
       const reply =
-        `Based on your profile, focus on opportunities matching ${skills}. For "${message}", I recommend tailoring your resume to the job description and preparing 2–3 project examples using the required technologies.`;
+        `Based on your profile, focus on opportunities matching ${skills}. For "${message}", I recommend tailoring your resume to the job description and preparing 2â€“3 project examples using the required technologies.`;
 
       res.json({
         reply,
@@ -1887,3 +1788,5 @@ app.listen(
     );
   }
 );
+
+
