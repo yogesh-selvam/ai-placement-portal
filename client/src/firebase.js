@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
@@ -11,7 +11,8 @@ const firebaseConfig = {
   measurementId: "G-LWGBNS04M2"
 };
 
-const app = initializeApp(firebaseConfig);
+// Initialize as a singleton to prevent duplicate instances during HMR / re-renders
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 export default app;

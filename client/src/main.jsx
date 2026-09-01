@@ -5,9 +5,9 @@ import { createRoot } from "react-dom/client";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
-  sendEmailVerification,
   signInWithEmailAndPassword,
   signOut,
+  sendEmailVerification,
 } from "firebase/auth";
 import { auth } from "./firebase.js";
 import {
@@ -29,12 +29,51 @@ import {
   assistantApi,
  } from "./api.js";
 
+function getVerificationActionSettings() {
+  return {
+    url: `${window.location.origin}/?emailVerified=1`,
+    handleCodeInApp: false,
+  };
+}
+
+function VerifyEmailResult({ onContinue }) {
+  return (
+    <div className="login-page">
+      <section className="login-right">
+        <div className="login-card">
+          <h1>Email verified successfully! ✅</h1>
+          <p>Your email address has been verified. You can now sign in to CareerConnect AI.</p>
+          <button className="primary wide" onClick={onContinue}>
+            Continue to Sign In <ArrowRight size={18}/>
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function normalizeSavedJobs(data) {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.savedJobs)) return data.savedJobs;
   if (Array.isArray(data?.rows)) return data.rows;
   if (Array.isArray(data?.data)) return data.data;
   return [];
+}
+
+function normalizeJobSkills(value) {
+  const raw = Array.isArray(value) ? value : String(value ?? "").split(",");
+
+  return raw
+    .map(skill => {
+      if (typeof skill === "string" || typeof skill === "number") return String(skill).trim();
+      return String(skill?.name ?? skill?.skill ?? skill?.title ?? "").trim();
+    })
+    .filter(Boolean);
+}
+
+function normalizeJobForDisplay(job) {
+  if (!job || typeof job !== "object") return job;
+  return { ...job, skills: normalizeJobSkills(job.skills) };
 }
 
 function savedJobId(item) {
@@ -48,11 +87,7 @@ function buildRecommendedJobs(jobs, profile) {
 
   return (Array.isArray(jobs) ? jobs : [])
     .map(job => {
-      const jobSkills = (Array.isArray(job?.skills)
-        ? job.skills
-        : String(job?.skills || "").split(","))
-        .map(skill => String(skill).trim())
-        .filter(Boolean);
+      const jobSkills = normalizeJobSkills(job?.skills);
 
       const matchingSkills = jobSkills.filter(skill =>
         userSkills.includes(skill.toLowerCase())
@@ -76,35 +111,53 @@ function buildRecommendedJobs(jobs, profile) {
     });
 }
 
-
-
-
 function Header({ page, setPage, onProfile, onLogout }) {
-  return <header className="header">
-    <div className="header-right">
-  <div className="mini-search">
-    <Search size={19}/>
-    <input
-      placeholder={`Search ${
-        page === "applications" ? "applications" : "jobs"
-      }...`}
-    />
-  </div>
+  return (
+    <header className="header">
+      <div className="brand" onClick={() => setPage("home")}>
+        CareerConnect AI
+      </div>
 
-  <button className="profile-link" onClick={onProfile}>
-    My Profile
-  </button>
+      <nav>
+        {[
+          ["home", "Home"],
+          ["jobs", "Jobs"],
+          ["applications", "Applications"],
+          ["saved-jobs", "Saved Jobs"],
+          ["notifications", "Notifications"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            className={page === key ? "nav active" : "nav"}
+            onClick={() => setPage(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
 
-  <button
-    className="logout-btn"
-    onClick={onLogout}
-  >
-    Logout
-  </button>
+      <div className="header-right">
+        <button
+          type="button"
+          className="profile-link"
+          onClick={onProfile}
+        >
+          My Profile
+        </button>
 
-  <div className="avatar small">A</div>
-</div>
-  </header>
+        <button
+          type="button"
+          className="logout-btn"
+          onClick={onLogout}
+        >
+          Logout
+        </button>
+
+        <div className="avatar small">A</div>
+      </div>
+    </header>
+  );
 }
 
 function Footer(){ return <footer><b>CareerConnect AI</b><span>© 2024 CareerConnect AI. All rights reserved.</span><div><span>Privacy Policy</span><span>Terms of Service</span><span>Support</span></div></footer> }
@@ -222,8 +275,6 @@ function Login({onLogin}) {
   const [mode,setMode]=useState("login");
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
-  const [verificationSent,setVerificationSent]=useState(false);
-  const [verificationEmail,setVerificationEmail]=useState("");
 
   function friendlyFirebaseError(err) {
     const code = err?.code || "";
@@ -237,6 +288,7 @@ function Login({onLogin}) {
       "auth/wrong-password": "Invalid email or password.",
       "auth/too-many-requests": "Too many attempts. Please try again later.",
       "auth/network-request-failed": "Network error. Check your internet connection.",
+      "auth/user-disabled": "This account has been disabled.",
     };
     return messages[code] || err?.message || "Authentication failed.";
   }
@@ -263,147 +315,54 @@ function Login({onLogin}) {
     try {
       setLoading(true);
 
+      const credential = mode === "register"
+        ? await createUserWithEmailAndPassword(auth, value, password)
+        : await signInWithEmailAndPassword(auth, value, password);
+
       if (mode === "register") {
-        const credential = await createUserWithEmailAndPassword(
-          auth,
-          value,
-          password
+        await sendEmailVerification(
+          credential.user,
+          getVerificationActionSettings()
         );
 
-        await sendEmailVerification(credential.user);
-
-        setVerificationEmail(value);
-        setVerificationSent(true);
         setError("");
+        alert("Verification email sent! Please check your email and verify your account.");
 
+        // Do not keep an unverified Firebase session active.
+        await signOut(auth);
         localStorage.removeItem("cc_token");
-        await signOut(auth).catch(() => {});
+        setLoading(false);
         return;
       }
 
-      const credential = await signInWithEmailAndPassword(
-        auth,
-        value,
-        password
-      );
+      // Refresh Firebase user state before allowing dashboard access.
+      await credential.user.reload();
 
       if (!credential.user.emailVerified) {
-        setVerificationEmail(value);
-        setVerificationSent(true);
-        setError(
-          "Please verify your email before signing in. A verification email has been sent."
-        );
-
-        await sendEmailVerification(credential.user).catch(() => {});
-        localStorage.removeItem("cc_token");
         await signOut(auth).catch(() => {});
+        localStorage.removeItem("cc_token");
+        setError("Please verify your email before signing in. Check your inbox for the Firebase verification email.");
+        setLoading(false);
         return;
       }
 
       const token = await credential.user.getIdToken(true);
       localStorage.setItem("cc_token", token);
 
+      // Sync the Firebase-authenticated user with the existing PostgreSQL user.
       const data = await authApi.me();
+
       onLogin(data || {
         id: credential.user.uid,
         email: credential.user.email,
       });
+
     } catch(err) {
       localStorage.removeItem("cc_token");
-      await signOut(auth).catch(() => {});
       setError(friendlyFirebaseError(err));
     } finally {
       setLoading(false);
     }
-  }
-
-  if (verificationSent) {
-    return (
-      <div className="login-page">
-        <section className="login-left">
-          <div className="login-brand">CareerConnect AI</div>
-          <p>Your career. Your opportunities. Your future.</p>
-          <div className="login-visual">
-            <div className="visual-card">
-              <Sparkles size={38}/>
-              <strong>AI-powered career matching</strong>
-              <span>Discover opportunities built around your skills.</span>
-            </div>
-          </div>
-          <small>© 2024 CareerConnect AI. All rights reserved.</small>
-        </section>
-
-        <section className="login-right">
-          <div className="login-card">
-            <h1>Verify your email</h1>
-            <p>We sent a verification link to <b>{verificationEmail}</b>.</p>
-            <div className="notice">
-              📧 Open your email and click the verification link.
-              <br />
-              After verifying, return here and sign in with your email and password.
-            </div>
-
-            <button
-              className="primary wide"
-              onClick={() => {
-                setVerificationSent(false);
-                setMode("login");
-                setError("");
-                setPassword("");
-                setConfirmPassword("");
-              }}
-            >
-              Back to Sign In
-              <ArrowRight size={18}/>
-            </button>
-
-            <button
-              className="text-btn"
-              onClick={async () => {
-                try {
-                  setLoading(true);
-                  setError("");
-
-                  const credential = await signInWithEmailAndPassword(
-                    auth,
-                    verificationEmail,
-                    password
-                  );
-
-                  if (credential.user.emailVerified) {
-                    const token = await credential.user.getIdToken(true);
-                    localStorage.setItem("cc_token", token);
-
-                    const data = await authApi.me();
-                    onLogin(data || {
-                      id: credential.user.uid,
-                      email: credential.user.email,
-                    });
-                  } else {
-                    await sendEmailVerification(credential.user).catch(() => {});
-                    setError(
-                      "Email is not verified yet. Please check your inbox and click the verification link."
-                    );
-                    await signOut(auth).catch(() => {});
-                  }
-                } catch (err) {
-                  localStorage.removeItem("cc_token");
-                  await signOut(auth).catch(() => {});
-                  setError(friendlyFirebaseError(err));
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              disabled={loading}
-            >
-              {loading ? "Checking..." : "I verified my email — Check again"}
-            </button>
-
-            {error && <div className="auth-error">{error}</div>}
-          </div>
-        </section>
-      </div>
-    );
   }
 
   return <div className="login-page">
@@ -539,7 +498,7 @@ function Home({setPage, user, setSelectedJob}) {
       const normalizedJobs = Array.isArray(jobsData) ? jobsData : [];
       const apiRecommended = recommendedResult.status === "fulfilled" ? recommendedResult.value : [];
       const normalizedRecommended = Array.isArray(apiRecommended) && apiRecommended.length
-        ? apiRecommended
+        ? apiRecommended.map(normalizeJobForDisplay)
         : buildRecommendedJobs(normalizedJobs, profileData);
 
       setJobs(normalizedJobs);
@@ -646,7 +605,7 @@ function JobCard({job,compact=false,onView,initialSaved=false,onSavedChange}) {
   const [saved,setSaved]=useState(!!initialSaved);
   const [saving,setSaving]=useState(false);
   const Icon=job.icon || BriefcaseBusiness;
-  const skills = Array.isArray(job.skills) ? job.skills : [];
+  const skills = normalizeJobSkills(job.skills);
 
   useEffect(() => {
     setSaved(!!initialSaved);
@@ -829,7 +788,7 @@ function Jobs({setPage, setSelectedJob}) {
                 <h3>{j.title}</h3>
                 <p>{j.company} • {j.location}</p>
                 <div className="chips">
-                  {(Array.isArray(j.skills) ? j.skills : []).map(s=><span key={s}>{s}</span>)}
+                  {normalizeJobSkills(j.skills).map(s=><span key={s}>{s}</span>)}
                 </div>
               </div>
               <button
@@ -961,7 +920,7 @@ function JobDetail({setPage, job, refreshApplications}) {
           <hr/>
           <h2>Required Skills & Technologies</h2>
           <div className="chips">
-            {(Array.isArray(job.skills) ? job.skills : []).map(s=><span key={s}>{s}</span>)}
+            {normalizeJobSkills(job.skills).map(s=><span key={s}>{s}</span>)}
           </div>
 
           <hr/>
@@ -1069,9 +1028,7 @@ function Applications({setPage}) {
                 <h2>{a.job?.title || "Job Application"}</h2>
                 <p>{a.job?.company || "Company"} • {a.job?.location || "Location not available"}</p>
                 <div className="chips">
-                  {(Array.isArray(a.job?.skills) ? a.job.skills : String(a.job?.skills || "").split(",").filter(Boolean)).map(s=>
-                    <span key={s}>{String(s).trim()}</span>
-                  )}
+                  {normalizeJobSkills(a.job?.skills).map(s=><span key={s}>{s}</span>)}
                   {a.job?.salary&&<span>{a.job.salary}</span>}
                 </div>
               </div>
@@ -1367,9 +1324,7 @@ function SavedJobs({setPage,setSelectedJob}) {
           {rows.map(item => {
             const job = item.job;
             if (!job) return null;
-            const skills = Array.isArray(job.skills)
-              ? job.skills
-              : String(job.skills || "").split(",").map(s=>s.trim()).filter(Boolean);
+            const skills = normalizeJobSkills(job.skills);
 
             return <article className="list-job" key={item.id}>
               <div className="job-icon"><BriefcaseBusiness/></div>
@@ -1599,6 +1554,19 @@ function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Refresh Firebase state so emailVerified is always current.
+        await firebaseUser.reload().catch(() => {});
+
+        if (!firebaseUser.emailVerified) {
+          await signOut(auth).catch(() => {});
+          localStorage.removeItem("cc_token");
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+      }
+
       if (!firebaseUser) {
         localStorage.removeItem("cc_token");
         setUser(null);
@@ -1607,14 +1575,6 @@ function App() {
       }
 
       try {
-        if (!firebaseUser.emailVerified) {
-          localStorage.removeItem("cc_token");
-          await signOut(auth).catch(() => {});
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
         const token = await firebaseUser.getIdToken();
         localStorage.setItem("cc_token", token);
 
@@ -1657,6 +1617,20 @@ function App() {
           <p>Loading your placement portal...</p>
         </div>
       </div>
+    );
+  }
+
+  const verificationCompleted = new URLSearchParams(window.location.search).get("emailVerified") === "1";
+
+  if (verificationCompleted) {
+    return (
+      <VerifyEmailResult
+        onContinue={() => {
+          window.history.replaceState({}, "", window.location.pathname);
+          setPage("login");
+          setUser(null);
+        }}
+      />
     );
   }
 
