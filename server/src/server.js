@@ -7,7 +7,7 @@ import { Resend } from "resend";
 import { PrismaClient } from "@prisma/client";
 
 import {
-  applicationDefault,
+  cert,
   getApps,
   initializeApp,
 } from "firebase-admin/app";
@@ -22,15 +22,44 @@ const PORT = process.env.PORT || 5000;
 let firebaseAuth = null;
 
 try {
+  const firebaseProjectId = String(
+    process.env.FIREBASE_PROJECT_ID || ""
+  ).trim();
+
+  const firebaseClientEmail = String(
+    process.env.FIREBASE_CLIENT_EMAIL || ""
+  ).trim();
+
+  const firebasePrivateKey = String(
+    process.env.FIREBASE_PRIVATE_KEY || ""
+  ).replace(/\\n/g, "\n");
+
+  if (
+    !firebaseProjectId ||
+    !firebaseClientEmail ||
+    !firebasePrivateKey
+  ) {
+    throw new Error(
+      "Firebase Admin environment variables are missing. Required: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY"
+    );
+  }
+
   const firebaseAdminApp = getApps().length
     ? getApps()[0]
     : initializeApp({
-        credential: applicationDefault(),
+        credential: cert({
+          projectId: firebaseProjectId,
+          clientEmail: firebaseClientEmail,
+          privateKey: firebasePrivateKey,
+        }),
+        projectId: firebaseProjectId,
       });
 
   firebaseAuth = getFirebaseAuth(firebaseAdminApp);
 
-  console.log("Firebase Admin authentication initialized.");
+  console.log(
+    `Firebase Admin authentication initialized for project: ${firebaseProjectId}`
+  );
 } catch (error) {
   console.error(
     "Firebase Admin initialization failed:",
