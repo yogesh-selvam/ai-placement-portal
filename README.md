@@ -9,6 +9,7 @@
   <img src="https://img.shields.io/badge/Firebase-Authentication-FFCA28?style=for-the-badge&logo=firebase&logoColor=black" />
   <img src="https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" />
   <img src="https://img.shields.io/badge/Prisma-ORM-2D3748?style=for-the-badge&logo=prisma&logoColor=white" />
+  <img src="https://img.shields.io/badge/Cloudinary-Resume%20Storage-3448C5?style=for-the-badge&logo=cloudinary&logoColor=white" />
 
 </p>
 
@@ -47,7 +48,8 @@ The platform combines:
 - 🔖 Saved jobs
 - 🔔 Notifications
 - 🤖 Career assistant
-- 📄 Resume information
+- 📄 PDF resume upload
+- ☁️ Cloudinary resume storage
 - ☁️ Production deployment
 
 The application follows a modern client-server architecture with a React frontend, Express backend, Firebase authentication, PostgreSQL database, and Prisma ORM.
@@ -81,10 +83,52 @@ Users can create and maintain a professional career profile.
 - Education details
 - Skills
 - Projects
-- Resume URL
+- PDF resume upload
+- Cloudinary-hosted resume
 - Career-related information
 
-Profile data is stored securely in PostgreSQL through Prisma.
+Profile data is stored securely in PostgreSQL through Prisma. Uploaded PDF resumes are stored in Cloudinary, with the Cloudinary secure URL saved in the user's `resumeUrl` field.
+
+---
+
+## 📄 Resume Management
+
+CareerConnect AI allows users to upload their resume directly from the profile instead of entering a manual resume URL.
+
+### Resume Upload Flow
+
+```text
+Select PDF Resume
+      │
+      ▼
+Frontend Upload
+      │
+      ▼
+Express Backend
+      │
+      ▼
+Cloudinary
+      │
+      ▼
+Secure Resume URL
+      │
+      ▼
+PostgreSQL
+      │
+      ▼
+View Resume
+```
+
+### Resume Features
+
+- PDF-only resume upload
+- Maximum file size: 5 MB
+- Resume upload handled by the backend
+- Cloudinary used for cloud file storage
+- Cloudinary `secure_url` saved in PostgreSQL
+- View uploaded resume
+- Replace an existing resume
+- No manual resume URL entry required
 
 ---
 
@@ -245,7 +289,8 @@ Assistant Response
 | 🎓 Education Details         | ✅ Complete |
 | 🛠️ Skills Management        | ✅ Complete |
 | 🚀 Project Management        | ✅ Complete |
-| 📄 Resume Information        | ✅ Complete |
+| 📄 Resume Upload             | ✅ Complete |
+| ☁️ Cloudinary Resume Storage | ✅ Complete |
 | 💼 Job Listing               | ✅ Complete |
 | 🔎 Job Search & Filtering    | ✅ Complete |
 | 🎯 Skill Matching            | ✅ Complete |
@@ -330,6 +375,8 @@ Assistant Response
 | Prisma             | Database ORM                |
 | PostgreSQL         | Persistent database         |
 | CORS               | Cross-origin communication  |
+| Cloudinary         | Resume file storage         |
+| Multer             | Resume file upload handling |
 
 ---
 
@@ -341,6 +388,7 @@ Assistant Response
 | Render                 | Express backend     |
 | Render PostgreSQL      | Production database |
 | Firebase               | Authentication      |
+| Cloudinary             | Resume file storage |
 
 ---
 
@@ -415,7 +463,7 @@ ai-placement-portal-fullstack/
 └── README.md
 ```
 
-> Firebase service-account credentials and environment secrets must never be committed to the repository.
+> Firebase service-account credentials, Cloudinary API secrets, database passwords, and other environment secrets must never be committed to the repository.
 
 ---
 
@@ -557,6 +605,10 @@ FIREBASE_PROJECT_ID=your_firebase_project_id
 FIREBASE_CLIENT_EMAIL=your_firebase_service_account_email
 
 FIREBASE_PRIVATE_KEY=your_firebase_private_key
+
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 ```
 
 ### ⚠️ Important
@@ -642,6 +694,37 @@ npx prisma generate
 ```
 
 For development database changes, use the Prisma workflow appropriate to your schema and migration setup.
+
+---
+
+# ☁️ Cloudinary Resume Storage
+
+Cloudinary is used to store uploaded PDF resumes in the production application.
+
+### Backend Configuration
+
+Add these variables to `server/.env`:
+
+```env
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+```
+
+For Render production deployment, add the same variables under the backend service's Environment settings.
+
+### Upload Rules
+
+```text
+File Type : PDF only
+Max Size  : 5 MB
+Storage   : Cloudinary
+Database  : PostgreSQL
+```
+
+The backend uploads the PDF to Cloudinary and stores the returned `secure_url` in the user's existing `resumeUrl` database field.
+
+> Never commit `CLOUDINARY_API_SECRET` or any other Cloudinary credentials to Git.
 
 ---
 
@@ -735,6 +818,9 @@ CLIENT_URL
 FIREBASE_PROJECT_ID
 FIREBASE_CLIENT_EMAIL
 FIREBASE_PRIVATE_KEY
+CLOUDINARY_CLOUD_NAME
+CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET
 ```
 
 The backend listens on the Render-provided `PORT`.
@@ -766,7 +852,11 @@ Profile
     ├── Skills
     ├── Education
     ├── Projects
-    └── Resume
+    └── Resume PDF upload
+         ├── PDF validation
+         ├── 5 MB limit
+         ├── Cloudinary upload
+         └── View uploaded resume
 
 Jobs
     ├── View jobs
@@ -942,6 +1032,7 @@ This project demonstrates practical experience with:
 - 🎯 Skill matching algorithms
 - 📊 Application state management
 - 🔔 Notification systems
+- ☁️ Cloudinary file storage
 - ☁️ Cloud deployment
 - 🔧 Environment-based configuration
 - 🔄 Frontend-backend integration
@@ -1032,6 +1123,8 @@ The long-term vision is to make the entire placement and career discovery proces
 ---
 
 # 🔗 Repository
+
+[GitHub Repository](https://github.com/yogesh-selvam/ai-placement-portal)
 
 ---
 
