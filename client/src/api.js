@@ -1,7 +1,41 @@
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+import { auth } from "./firebase";
+import { onIdTokenChanged } from "firebase/auth";
+
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
+).replace(/\/$/, "");
+
+// Keep localStorage token synchronized with Firebase.
+onIdTokenChanged(auth, async (user) => {
+  try {
+    if (user) {
+      const token = await user.getIdToken();
+      localStorage.setItem("cc_token", token);
+    } else {
+      localStorage.removeItem("cc_token");
+    }
+  } catch (error) {
+    console.error("Unable to sync Firebase token:", error);
+    localStorage.removeItem("cc_token");
+  }
+});
 
 async function request(path, options = {}) {
-  const token = localStorage.getItem("cc_token");
+  const currentUser = auth.currentUser;
+
+  let token = localStorage.getItem("cc_token");
+
+  // Get a fresh Firebase ID token when a user is signed in.
+  if (currentUser) {
+    try {
+      token = await currentUser.getIdToken();
+      localStorage.setItem("cc_token", token);
+    } catch (error) {
+      console.error("Unable to get Firebase ID token:", error);
+      localStorage.removeItem("cc_token");
+      token = null;
+    }
+  }
 
   const headers = {
     ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -13,17 +47,22 @@ async function request(path, options = {}) {
   }
 
   let response;
+
   try {
     response = await fetch(`${API_URL}/api${path}`, {
       ...options,
       headers,
     });
   } catch (error) {
-    throw new Error("Unable to connect to the CareerConnect server.");
+    throw new Error(
+      "Unable to connect to the CareerConnect server."
+    );
   }
 
   let data = null;
-  const contentType = response.headers.get("content-type") || "";
+
+  const contentType =
+    response.headers.get("content-type") || "";
 
   if (contentType.includes("application/json")) {
     data = await response.json().catch(() => null);
@@ -33,12 +72,13 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    if (response.status === 401 && path !== "/auth/verify-otp" && path !== "/auth/request-otp") {
+    if (response.status === 401) {
       localStorage.removeItem("cc_token");
     }
 
     throw new Error(
-      data?.message || `Request failed (${response.status})`
+      data?.message ||
+        `Request failed (${response.status})`
     );
   }
 
@@ -48,19 +88,55 @@ async function request(path, options = {}) {
 /* =========================
    AUTH API
 ========================= */
+
 export const authApi = {
-  requestOtp(email) {
-    return request("/auth/request-otp", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
+  async register(email, password) {
+    const { createUserWithEmailAndPassword } =
+      await import("firebase/auth");
+
+    const credential =
+      await createUserWithEmailAndPassword(
+        auth,
+        email.trim().toLowerCase(),
+        password
+      );
+
+    const token = await credential.user.getIdToken();
+
+    localStorage.setItem("cc_token", token);
+
+    return {
+      user: credential.user,
+      token,
+    };
   },
 
-  verifyOtp(email, otp) {
-    return request("/auth/verify-otp", {
-      method: "POST",
-      body: JSON.stringify({ email, otp }),
-    });
+  async login(email, password) {
+    const { signInWithEmailAndPassword } =
+      await import("firebase/auth");
+
+    const credential =
+      await signInWithEmailAndPassword(
+        auth,
+        email.trim().toLowerCase(),
+        password
+      );
+
+    const token = await credential.user.getIdToken();
+
+    localStorage.setItem("cc_token", token);
+
+    return {
+      user: credential.user,
+      token,
+    };
+  },
+
+  async logout() {
+    const { signOut } = await import("firebase/auth");
+
+    await signOut(auth);
+    localStorage.removeItem("cc_token");
   },
 
   me() {
@@ -71,6 +147,7 @@ export const authApi = {
 /* =========================
    JOBS API
 ========================= */
+
 export const jobsApi = {
   getAll(filters = {}) {
     const params = new URLSearchParams();
@@ -81,7 +158,10 @@ export const jobsApi = {
     if (filters.sort) params.set("sort", filters.sort);
 
     const query = params.toString();
-    return request(`/jobs${query ? `?${query}` : ""}`);
+
+    return request(
+      `/jobs${query ? `?${query}` : ""}`
+    );
   },
 
   getRecommended() {
@@ -90,21 +170,31 @@ export const jobsApi = {
 
   getById(id) {
     const jobId = Number(id);
+
     if (!Number.isInteger(jobId) || jobId <= 0) {
-      return Promise.reject(new Error("Invalid job ID"));
+      return Promise.reject(
+        new Error("Invalid job ID")
+      );
     }
+
     return request(`/jobs/${jobId}`);
   },
 
   apply(id, coverLetter = "", resumeUsed = null) {
     const jobId = Number(id);
+
     if (!Number.isInteger(jobId) || jobId <= 0) {
-      return Promise.reject(new Error("Invalid job ID"));
+      return Promise.reject(
+        new Error("Invalid job ID")
+      );
     }
 
     return request(`/jobs/${jobId}/apply`, {
       method: "POST",
-      body: JSON.stringify({ coverLetter, resumeUsed }),
+      body: JSON.stringify({
+        coverLetter,
+        resumeUsed,
+      }),
     });
   },
 };
@@ -112,6 +202,7 @@ export const jobsApi = {
 /* =========================
    APPLICATIONS API
 ========================= */
+
 export const applicationsApi = {
   getAll() {
     return request("/applications");
@@ -119,28 +210,48 @@ export const applicationsApi = {
 
   getById(id) {
     const applicationId = Number(id);
-    if (!Number.isInteger(applicationId) || applicationId <= 0) {
-      return Promise.reject(new Error("Invalid application ID"));
+
+    if (
+      !Number.isInteger(applicationId) ||
+      applicationId <= 0
+    ) {
+      return Promise.reject(
+        new Error("Invalid application ID")
+      );
     }
+
     return request(`/applications/${applicationId}`);
   },
 
   updateStatus(id, status, note = "") {
     const applicationId = Number(id);
-    if (!Number.isInteger(applicationId) || applicationId <= 0) {
-      return Promise.reject(new Error("Invalid application ID"));
+
+    if (
+      !Number.isInteger(applicationId) ||
+      applicationId <= 0
+    ) {
+      return Promise.reject(
+        new Error("Invalid application ID")
+      );
     }
 
-    return request(`/applications/${applicationId}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status, note }),
-    });
+    return request(
+      `/applications/${applicationId}/status`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          status,
+          note,
+        }),
+      }
+    );
   },
 };
 
 /* =========================
    PROFILE API
 ========================= */
+
 export const profileApi = {
   get() {
     return request("/profile");
@@ -157,6 +268,7 @@ export const profileApi = {
 /* =========================
    SAVED JOBS API
 ========================= */
+
 export const savedJobsApi = {
   getAll() {
     return request("/saved-jobs");
@@ -165,20 +277,26 @@ export const savedJobsApi = {
   save(jobId) {
     return request("/saved-jobs", {
       method: "POST",
-      body: JSON.stringify({ jobId: Number(jobId) }),
+      body: JSON.stringify({
+        jobId: Number(jobId),
+      }),
     });
   },
 
   remove(jobId) {
-    return request(`/saved-jobs/${Number(jobId)}`, {
-      method: "DELETE",
-    });
+    return request(
+      `/saved-jobs/${Number(jobId)}`,
+      {
+        method: "DELETE",
+      }
+    );
   },
 };
 
 /* =========================
    NOTIFICATIONS API
 ========================= */
+
 export const notificationsApi = {
   getAll() {
     return request("/notifications");
@@ -194,6 +312,7 @@ export const notificationsApi = {
 /* =========================
    AI ASSISTANT API
 ========================= */
+
 export const assistantApi = {
   chat(message) {
     return request("/assistant/chat", {
@@ -206,9 +325,14 @@ export const assistantApi = {
 /* =========================
    OPTIONAL MODULE APIs
 ========================= */
+
 export const interviewApi = {
   getQuestion(jobId) {
-    return request(`/interview/questions?jobId=${encodeURIComponent(jobId)}`);
+    return request(
+      `/interview/questions?jobId=${encodeURIComponent(
+        jobId
+      )}`
+    );
   },
 
   evaluate(payload) {

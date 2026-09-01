@@ -3,6 +3,14 @@ console.log("🔥 MAIN JSX LOADED");
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
+import { auth } from "./firebase.js";
+import {
   Search, UserCircle, Bookmark, FileText, UsersRound, Video,
   Bell, BriefcaseBusiness, CalendarDays, Eye, Star, Sparkles,
   ArrowRight, MapPin, Clock3, CheckCircle2, Code2, BarChart3,
@@ -71,27 +79,31 @@ function buildRecommendedJobs(jobs, profile) {
 
 
 
-function Header({ page, setPage, onProfile }) {
+function Header({ page, setPage, onProfile, onLogout }) {
   return <header className="header">
-    <div className="brand" onClick={()=>setPage("home")}>CareerConnect AI</div>
-    <nav>
-      {[
-        ["home","Home"],
-        ["jobs","Jobs"],
-        ["applications","Applications"],
-        ["saved-jobs","Saved Jobs"],
-        ["notifications","Notifications"],
-      ].map(([key,label]) =>
-        <button key={key} className={page===key ? "nav active" : "nav"} onClick={()=>setPage(key)}>
-          {label}
-        </button>
-      )}
-    </nav>
     <div className="header-right">
-      <div className="mini-search"><Search size={19}/><input placeholder={`Search ${page === "applications" ? "applications" : "jobs"}...`}/></div>
-      <button className="profile-link" onClick={onProfile}>My Profile</button>
-      <div className="avatar small">A</div>
-    </div>
+  <div className="mini-search">
+    <Search size={19}/>
+    <input
+      placeholder={`Search ${
+        page === "applications" ? "applications" : "jobs"
+      }...`}
+    />
+  </div>
+
+  <button className="profile-link" onClick={onProfile}>
+    My Profile
+  </button>
+
+  <button
+    className="logout-btn"
+    onClick={onLogout}
+  >
+    Logout
+  </button>
+
+  <div className="avatar small">A</div>
+</div>
   </header>
 }
 
@@ -176,89 +188,318 @@ function Assistant({close}) {
   </aside>
 }
 
-function Layout({page,setPage,children,onProfile}) {
+function Layout({page,setPage,children,onProfile,onLogout}) {
   const [assistant,setAssistant] = useState(false);
-  return <div className="app"><Header page={page} setPage={setPage} onProfile={onProfile}/>{children}<AIButton open={assistant} onClick={()=>setAssistant(!assistant)}/>{assistant && <Assistant close={()=>setAssistant(false)}/>}<Footer/></div>
+
+  const logout = onLogout || (async () => {
+    await signOut(auth).catch(() => {});
+    localStorage.removeItem("cc_token");
+    sessionStorage.clear();
+    setPage("login");
+    window.location.reload();
+  });
+
+  return (
+    <div className="app">
+      <Header
+        page={page}
+        setPage={setPage}
+        onProfile={onProfile}
+        onLogout={logout}
+      />
+      {children}
+      <AIButton open={assistant} onClick={()=>setAssistant(!assistant)}/>
+      {assistant && <Assistant close={()=>setAssistant(false)}/>}
+      <Footer/>
+    </div>
+  );
 }
 
 function Login({onLogin}) {
   const [email,setEmail]=useState("");
-  const [otp,setOtp]=useState("");
-  const [sent,setSent]=useState(false);
+  const [password,setPassword]=useState("");
+  const [confirmPassword,setConfirmPassword]=useState("");
+  const [mode,setMode]=useState("login");
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
+  const [verificationSent,setVerificationSent]=useState(false);
+  const [verificationEmail,setVerificationEmail]=useState("");
 
-  async function handleSendOtp(){
+  function friendlyFirebaseError(err) {
+    const code = err?.code || "";
+    const messages = {
+      "auth/invalid-email": "Please enter a valid email address.",
+      "auth/missing-password": "Please enter your password.",
+      "auth/weak-password": "Password must be at least 6 characters.",
+      "auth/email-already-in-use": "An account already exists with this email.",
+      "auth/invalid-credential": "Invalid email or password.",
+      "auth/user-not-found": "No account found. Please create an account first.",
+      "auth/wrong-password": "Invalid email or password.",
+      "auth/too-many-requests": "Too many attempts. Please try again later.",
+      "auth/network-request-failed": "Network error. Check your internet connection.",
+    };
+    return messages[code] || err?.message || "Authentication failed.";
+  }
+
+  async function authenticate() {
     setError("");
     const value=email.trim().toLowerCase();
+
     if(!value){
-      setError("Please enter your college email.");
+      setError("Please enter your email.");
       return;
     }
-    try{
+
+    if(!password){
+      setError("Please enter your password.");
+      return;
+    }
+
+    if(mode==="register" && password !== confirmPassword){
+      setError("Passwords do not match.");
+      return;
+    }
+
+    try {
       setLoading(true);
-      await authApi.requestOtp(value);
-      setSent(true);
-    }catch(err){
-      setError(err.message || "Unable to send OTP.");
-    }finally{
+
+      if (mode === "register") {
+        const credential = await createUserWithEmailAndPassword(
+          auth,
+          value,
+          password
+        );
+
+        await sendEmailVerification(credential.user);
+
+        setVerificationEmail(value);
+        setVerificationSent(true);
+        setError("");
+
+        localStorage.removeItem("cc_token");
+        await signOut(auth).catch(() => {});
+        return;
+      }
+
+      const credential = await signInWithEmailAndPassword(
+        auth,
+        value,
+        password
+      );
+
+      if (!credential.user.emailVerified) {
+        setVerificationEmail(value);
+        setVerificationSent(true);
+        setError(
+          "Please verify your email before signing in. A verification email has been sent."
+        );
+
+        await sendEmailVerification(credential.user).catch(() => {});
+        localStorage.removeItem("cc_token");
+        await signOut(auth).catch(() => {});
+        return;
+      }
+
+      const token = await credential.user.getIdToken(true);
+      localStorage.setItem("cc_token", token);
+
+      const data = await authApi.me();
+      onLogin(data || {
+        id: credential.user.uid,
+        email: credential.user.email,
+      });
+    } catch(err) {
+      localStorage.removeItem("cc_token");
+      await signOut(auth).catch(() => {});
+      setError(friendlyFirebaseError(err));
+    } finally {
       setLoading(false);
     }
   }
 
-  async function handleVerifyOtp(){
-    setError("");
-    if(!/^\d{6}$/.test(otp)){
-      setError("Please enter the 6-digit OTP.");
-      return;
-    }
-    try{
-      setLoading(true);
-      const data=await authApi.verifyOtp(email.trim().toLowerCase(),otp);
-      localStorage.setItem("cc_token",data.token);
-      onLogin(data.user);
-    }catch(err){
-      setError(err.message || "Invalid or expired OTP.");
-    }finally{
-      setLoading(false);
-    }
+  if (verificationSent) {
+    return (
+      <div className="login-page">
+        <section className="login-left">
+          <div className="login-brand">CareerConnect AI</div>
+          <p>Your career. Your opportunities. Your future.</p>
+          <div className="login-visual">
+            <div className="visual-card">
+              <Sparkles size={38}/>
+              <strong>AI-powered career matching</strong>
+              <span>Discover opportunities built around your skills.</span>
+            </div>
+          </div>
+          <small>© 2024 CareerConnect AI. All rights reserved.</small>
+        </section>
+
+        <section className="login-right">
+          <div className="login-card">
+            <h1>Verify your email</h1>
+            <p>We sent a verification link to <b>{verificationEmail}</b>.</p>
+            <div className="notice">
+              📧 Open your email and click the verification link.
+              <br />
+              After verifying, return here and sign in with your email and password.
+            </div>
+
+            <button
+              className="primary wide"
+              onClick={() => {
+                setVerificationSent(false);
+                setMode("login");
+                setError("");
+                setPassword("");
+                setConfirmPassword("");
+              }}
+            >
+              Back to Sign In
+              <ArrowRight size={18}/>
+            </button>
+
+            <button
+              className="text-btn"
+              onClick={async () => {
+                try {
+                  setLoading(true);
+                  setError("");
+
+                  const credential = await signInWithEmailAndPassword(
+                    auth,
+                    verificationEmail,
+                    password
+                  );
+
+                  if (credential.user.emailVerified) {
+                    const token = await credential.user.getIdToken(true);
+                    localStorage.setItem("cc_token", token);
+
+                    const data = await authApi.me();
+                    onLogin(data || {
+                      id: credential.user.uid,
+                      email: credential.user.email,
+                    });
+                  } else {
+                    await sendEmailVerification(credential.user).catch(() => {});
+                    setError(
+                      "Email is not verified yet. Please check your inbox and click the verification link."
+                    );
+                    await signOut(auth).catch(() => {});
+                  }
+                } catch (err) {
+                  localStorage.removeItem("cc_token");
+                  await signOut(auth).catch(() => {});
+                  setError(friendlyFirebaseError(err));
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              {loading ? "Checking..." : "I verified my email — Check again"}
+            </button>
+
+            {error && <div className="auth-error">{error}</div>}
+          </div>
+        </section>
+      </div>
+    );
   }
 
   return <div className="login-page">
     <section className="login-left">
       <div className="login-brand">CareerConnect AI</div>
       <p>Your career. Your opportunities. Your future.</p>
-      <div className="login-visual"><div className="visual-card"><Sparkles size={38}/><strong>AI-powered career matching</strong><span>Discover opportunities built around your skills.</span></div></div>
+      <div className="login-visual">
+        <div className="visual-card">
+          <Sparkles size={38}/>
+          <strong>AI-powered career matching</strong>
+          <span>Discover opportunities built around your skills.</span>
+        </div>
+      </div>
       <small>© 2024 CareerConnect AI. All rights reserved.</small>
     </section>
+
     <section className="login-right">
       <div className="login-card">
-        <h1>Welcome back</h1>
-        <p>Sign in to continue to your placement journey.</p>
-        {!sent ? <>
-          <label>College Email</label>
-          <div className="input-icon">
-            <FileText size={20}/>
-            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSendOtp()} placeholder="name@college.edu" autoComplete="email"/>
-          </div>
-          {error&&<div className="auth-error">{error}</div>}
-          <button className="primary wide" onClick={handleSendOtp} disabled={loading}>
-            {loading?"Sending...":"Send OTP"} <ArrowRight size={18}/>
-          </button>
-        </> : <>
-          <div className="otp-sent">OTP sent to <strong>{email}</strong></div>
-          <label>Enter OTP</label>
-          <div className="input-icon">
-            <ShieldCheck size={20}/>
-            <input type="text" inputMode="numeric" maxLength={6} value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,""))} onKeyDown={e=>e.key==="Enter"&&handleVerifyOtp()} placeholder="6-digit OTP" autoComplete="one-time-code"/>
-          </div>
-          {error&&<div className="auth-error">{error}</div>}
-          <button className="primary wide" onClick={handleVerifyOtp} disabled={loading}>
-            {loading?"Verifying...":"Verify & Continue"} <ArrowRight size={18}/>
-          </button>
-          <button className="text-btn" onClick={()=>{setSent(false);setOtp("");setError("");}} disabled={loading}>Change email</button>
-        </>}
-        <hr/><p className="legal">By continuing, you agree to our <b>Terms of Service</b> and <b>Privacy Policy</b>.</p>
+        <h1>{mode==="login" ? "Welcome back" : "Create your account"}</h1>
+        <p>
+          {mode==="login"
+            ? "Sign in to continue to your placement journey."
+            : "Create your CareerConnect AI account to get started."}
+        </p>
+
+        <label>Email</label>
+        <div className="input-icon">
+          <FileText size={20}/>
+          <input
+            type="email"
+            value={email}
+            onChange={e=>setEmail(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&authenticate()}
+            placeholder="name@college.edu"
+            autoComplete="email"
+          />
+        </div>
+
+        <label>Password</label>
+        <div className="input-icon">
+          <ShieldCheck size={20}/>
+          <input
+            type="password"
+            value={password}
+            onChange={e=>setPassword(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&authenticate()}
+            placeholder="Enter your password"
+            autoComplete={mode==="login" ? "current-password" : "new-password"}
+          />
+        </div>
+
+        {mode==="register" && (
+          <>
+            <label>Confirm Password</label>
+            <div className="input-icon">
+              <ShieldCheck size={20}/>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={e=>setConfirmPassword(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&authenticate()}
+                placeholder="Confirm your password"
+                autoComplete="new-password"
+              />
+            </div>
+          </>
+        )}
+
+        {error&&<div className="auth-error">{error}</div>}
+
+        <button className="primary wide" onClick={authenticate} disabled={loading}>
+          {loading
+            ? (mode==="login" ? "Signing in..." : "Creating account...")
+            : (mode==="login" ? "Sign In" : "Create Account")}
+          <ArrowRight size={18}/>
+        </button>
+
+        <button
+          className="text-btn"
+          onClick={()=>{
+            setMode(mode==="login" ? "register" : "login");
+            setError("");
+            setPassword("");
+            setConfirmPassword("");
+          }}
+          disabled={loading}
+        >
+          {mode==="login"
+            ? "New here? Create an account"
+            : "Already have an account? Sign in"}
+        </button>
+
+        <hr/>
+        <p className="legal">
+          By continuing, you agree to our <b>Terms of Service</b> and <b>Privacy Policy</b>.
+        </p>
       </div>
     </section>
   </div>;
@@ -1357,29 +1598,55 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("cc_token");
-
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
-    profileApi.get()
-      .then(profile => {
-        setUser(profile || {});
-      })
-      .catch(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
         localStorage.removeItem("cc_token");
         setUser(null);
-      })
-      .finally(() => {
         setLoading(false);
-      });
+        return;
+      }
+
+      try {
+        if (!firebaseUser.emailVerified) {
+          localStorage.removeItem("cc_token");
+          await signOut(auth).catch(() => {});
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        const token = await firebaseUser.getIdToken();
+        localStorage.setItem("cc_token", token);
+
+        const profile = await authApi.me();
+        setUser(profile || {
+          id: firebaseUser.uid,
+          email: firebaseUser.email,
+        });
+      } catch (err) {
+        console.error("Firebase session sync failed:", err);
+        localStorage.removeItem("cc_token");
+        await signOut(auth).catch(() => {});
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   function handleLogin(loggedInUser) {
     setUser(loggedInUser || {});
     setPage("home");
+  }
+
+  async function handleLogout() {
+    await signOut(auth).catch(() => {});
+    localStorage.removeItem("cc_token");
+    sessionStorage.clear();
+    setUser(null);
+    setPage("login");
   }
 
   if (loading) {

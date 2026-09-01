@@ -9,6 +9,7 @@
     "build": "npm run build --prefix client"
   },
   "dependencies": {
+    "firebase": "^12.18.0",
     "resend": "^6.25.0"
   }
 }

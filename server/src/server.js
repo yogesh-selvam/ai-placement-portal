@@ -3,14 +3,44 @@ import cors from "cors";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { PrismaClient } from "@prisma/client";
 
+import {
+  applicationDefault,
+  getApps,
+  initializeApp,
+} from "firebase-admin/app";
+
+import { getAuth as getFirebaseAuth } from "firebase-admin/auth";
 dotenv.config();
 
 const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+let firebaseAuth = null;
+
+try {
+  const firebaseAdminApp = getApps().length
+    ? getApps()[0]
+    : initializeApp({
+        credential: applicationDefault(),
+      });
+
+  firebaseAuth = getFirebaseAuth(firebaseAdminApp);
+
+  console.log("Firebase Admin authentication initialized.");
+} catch (error) {
+  console.error(
+    "Firebase Admin initialization failed:",
+    error?.message || error
+  );
+}
+
+const resend = new Resend(
+  (process.env.RESEND_API_KEY || "").trim()
+);
 
 /* =========================
    CORS CONFIGURATION
@@ -87,7 +117,6 @@ app.use(express.json());
 const auth = async (req, res, next) => {
   try {
     const header = req.headers.authorization || "";
-
     const token = header.startsWith("Bearer ")
       ? header.slice(7)
       : null;
@@ -98,27 +127,36 @@ const auth = async (req, res, next) => {
       });
     }
 
-    const payload = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
-
-    req.user = await prisma.user.findUnique({
-      where: {
-        id: Number(payload.userId),
-      },
-    });
-
-    if (!req.user) {
-      return res.status(401).json({
-        message: "User not found",
+    if (!firebaseAuth) {
+      return res.status(500).json({
+        message: "Firebase Admin authentication is not configured on the server",
       });
     }
 
+    const decoded = await firebaseAuth.verifyIdToken(token);
+    const email = String(decoded.email || "").trim().toLowerCase();
+
+    if (!email) {
+      return res.status(401).json({
+        message: "Firebase account email is required",
+      });
+    }
+
+    // Keep the existing PostgreSQL user/profile data model.
+    // Firebase becomes the source of truth for authentication.
+    req.user = await prisma.user.upsert({
+      where: { email },
+      update: {},
+      create: { email },
+    });
+
+    req.firebaseUser = decoded;
+
     next();
-  } catch {
-    res.status(401).json({
-      message: "Invalid or expired token",
+  } catch (error) {
+    console.error("Firebase auth error:", error?.message || error);
+    return res.status(401).json({
+      message: "Invalid or expired Firebase authentication token",
     });
   }
 };
@@ -136,58 +174,166 @@ function makeOtp() {
 }
 
 /* =========================
-   SMTP EMAIL
+   RESEND EMAIL
 ========================= */
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: Number(process.env.SMTP_PORT) === 465,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
 async function sendOtp(email, otp) {
+  const apiKey = (
+    process.env.RESEND_API_KEY || ""
+  ).trim();
+
+  if (!apiKey) {
+    throw new Error(
+      "RESEND_API_KEY is not configured on the server"
+    );
+  }
+
   const normalizedEmail = String(email || "")
     .trim()
     .toLowerCase();
 
   if (!normalizedEmail) {
-    throw new Error("Recipient email is missing");
+    throw new Error(
+      "Recipient email is missing"
+    );
   }
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
-    to: normalizedEmail,
-    subject: "CareerConnect AI - Your OTP",
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 24px;">
-        <h2>CareerConnect AI</h2>
+  try {
+    console.log(
+      "======================================"
+    );
 
-        <p>Your login OTP is:</p>
+    console.log(
+      "Sending OTP email with Resend..."
+    );
 
-        <div style="
-          font-size: 32px;
-          font-weight: bold;
-          letter-spacing: 10px;
-          margin: 24px 0;
-        ">
-          ${otp}
-        </div>
+    console.log(
+      "OTP recipient:",
+      normalizedEmail
+    );
 
-        <p>This OTP expires in 10 minutes.</p>
+    console.log(
+      "======================================"
+    );
 
-        <p style="color: #666;">
-          If you didn't request this OTP, you can safely ignore this email.
-        </p>
-      </div>
-    `,
-  });
+    const { data, error } =
+      await resend.emails.send({
+        from:
+          "CareerConnect AI <onboarding@resend.dev>",
 
-  console.log("OTP EMAIL SENT SUCCESSFULLY:", normalizedEmail);
+        to: [normalizedEmail],
+
+        subject:
+          "CareerConnect AI - Your OTP",
+
+        html: `
+          <div style="
+            font-family: Arial, sans-serif;
+            padding: 24px;
+            max-width: 600px;
+          ">
+
+            <h2 style="
+              margin-bottom: 20px;
+            ">
+              CareerConnect AI
+            </h2>
+
+            <p>
+              Your login OTP is:
+            </p>
+
+            <div style="
+              font-size: 32px;
+              font-weight: bold;
+              letter-spacing: 10px;
+              margin: 24px 0;
+            ">
+              ${otp}
+            </div>
+
+            <p>
+              This OTP expires in 10 minutes.
+            </p>
+
+            <p style="
+              color: #666;
+            ">
+              If you didn't request this OTP,
+              you can safely ignore this email.
+            </p>
+
+          </div>
+        `,
+      });
+
+    if (error) {
+      console.error(
+        "========== RESEND API ERROR =========="
+      );
+
+      console.error(
+        JSON.stringify(error, null, 2)
+      );
+
+      console.error(
+        "======================================"
+      );
+
+      throw new Error(
+        error.message ||
+        error.name ||
+        "Resend rejected the email"
+      );
+    }
+
+    if (!data?.id) {
+      console.error(
+        "Resend returned no email ID:",
+        data
+      );
+
+      throw new Error(
+        "Resend did not return an email ID"
+      );
+    }
+
+    console.log(
+      "OTP EMAIL SENT SUCCESSFULLY:",
+      data.id
+    );
+
+    return data;
+
+  } catch (error) {
+
+    console.error(
+      "========== OTP EMAIL ERROR =========="
+    );
+
+    console.error(
+      "Name:",
+      error?.name
+    );
+
+    console.error(
+      "Message:",
+      error?.message
+    );
+
+    console.error(
+      "Stack:",
+      error?.stack
+    );
+
+    console.error(
+      "====================================="
+    );
+
+    throw error;
+  }
 }
+
 /* =========================
    AUTH
 ========================= */
