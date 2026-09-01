@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { PrismaClient } from "@prisma/client";
 
 dotenv.config();
@@ -11,10 +11,6 @@ dotenv.config();
 const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-const resend = new Resend(
-  (process.env.RESEND_API_KEY || "").trim()
-);
 
 /* =========================
    CORS CONFIGURATION
@@ -140,166 +136,58 @@ function makeOtp() {
 }
 
 /* =========================
-   RESEND EMAIL
+   SMTP EMAIL
 ========================= */
 
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: Number(process.env.SMTP_PORT) === 465,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
 async function sendOtp(email, otp) {
-  const apiKey = (
-    process.env.RESEND_API_KEY || ""
-  ).trim();
-
-  if (!apiKey) {
-    throw new Error(
-      "RESEND_API_KEY is not configured on the server"
-    );
-  }
-
   const normalizedEmail = String(email || "")
     .trim()
     .toLowerCase();
 
   if (!normalizedEmail) {
-    throw new Error(
-      "Recipient email is missing"
-    );
+    throw new Error("Recipient email is missing");
   }
 
-  try {
-    console.log(
-      "======================================"
-    );
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: normalizedEmail,
+    subject: "CareerConnect AI - Your OTP",
+    html: `
+      <div style="font-family: Arial, sans-serif; padding: 24px;">
+        <h2>CareerConnect AI</h2>
 
-    console.log(
-      "Sending OTP email with Resend..."
-    );
+        <p>Your login OTP is:</p>
 
-    console.log(
-      "OTP recipient:",
-      normalizedEmail
-    );
+        <div style="
+          font-size: 32px;
+          font-weight: bold;
+          letter-spacing: 10px;
+          margin: 24px 0;
+        ">
+          ${otp}
+        </div>
 
-    console.log(
-      "======================================"
-    );
+        <p>This OTP expires in 10 minutes.</p>
 
-    const { data, error } =
-      await resend.emails.send({
-        from:
-          "CareerConnect AI <onboarding@resend.dev>",
+        <p style="color: #666;">
+          If you didn't request this OTP, you can safely ignore this email.
+        </p>
+      </div>
+    `,
+  });
 
-        to: [normalizedEmail],
-
-        subject:
-          "CareerConnect AI - Your OTP",
-
-        html: `
-          <div style="
-            font-family: Arial, sans-serif;
-            padding: 24px;
-            max-width: 600px;
-          ">
-
-            <h2 style="
-              margin-bottom: 20px;
-            ">
-              CareerConnect AI
-            </h2>
-
-            <p>
-              Your login OTP is:
-            </p>
-
-            <div style="
-              font-size: 32px;
-              font-weight: bold;
-              letter-spacing: 10px;
-              margin: 24px 0;
-            ">
-              ${otp}
-            </div>
-
-            <p>
-              This OTP expires in 10 minutes.
-            </p>
-
-            <p style="
-              color: #666;
-            ">
-              If you didn't request this OTP,
-              you can safely ignore this email.
-            </p>
-
-          </div>
-        `,
-      });
-
-    if (error) {
-      console.error(
-        "========== RESEND API ERROR =========="
-      );
-
-      console.error(
-        JSON.stringify(error, null, 2)
-      );
-
-      console.error(
-        "======================================"
-      );
-
-      throw new Error(
-        error.message ||
-        error.name ||
-        "Resend rejected the email"
-      );
-    }
-
-    if (!data?.id) {
-      console.error(
-        "Resend returned no email ID:",
-        data
-      );
-
-      throw new Error(
-        "Resend did not return an email ID"
-      );
-    }
-
-    console.log(
-      "OTP EMAIL SENT SUCCESSFULLY:",
-      data.id
-    );
-
-    return data;
-
-  } catch (error) {
-
-    console.error(
-      "========== OTP EMAIL ERROR =========="
-    );
-
-    console.error(
-      "Name:",
-      error?.name
-    );
-
-    console.error(
-      "Message:",
-      error?.message
-    );
-
-    console.error(
-      "Stack:",
-      error?.stack
-    );
-
-    console.error(
-      "====================================="
-    );
-
-    throw error;
-  }
+  console.log("OTP EMAIL SENT SUCCESSFULLY:", normalizedEmail);
 }
-
 /* =========================
    AUTH
 ========================= */
