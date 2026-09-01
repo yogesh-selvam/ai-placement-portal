@@ -29,13 +29,6 @@ import {
   assistantApi,
  } from "./api.js";
 
-function getVerificationActionSettings() {
-  return {
-    url: `${window.location.origin}/?emailVerified=1`,
-    handleCodeInApp: false,
-  };
-}
-
 function VerifyEmailResult({ onContinue }) {
   return (
     <div className="login-page">
@@ -320,10 +313,7 @@ function Login({onLogin}) {
         : await signInWithEmailAndPassword(auth, value, password);
 
       if (mode === "register") {
-        await sendEmailVerification(
-          credential.user,
-          getVerificationActionSettings()
-        );
+        await sendEmailVerification(credential.user);
 
         setError("");
         alert("Verification email sent! Please check your email and verify your account.");
