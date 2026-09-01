@@ -1048,6 +1048,8 @@ function Profile({setPage}) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [resumeFile, setResumeFile] = useState(null);
+  const [resumeUploading, setResumeUploading] = useState(false);
 
   function makeForm(data) {
     return {
@@ -1091,7 +1093,68 @@ function Profile({setPage}) {
     setNewSkill("");
     setNewProject({ title: "", description: "" });
     setEditingProject(null);
+    setResumeFile(null);
     setError(""); setSuccess("");
+  }
+
+  async function uploadResume() {
+    if (!resumeFile) {
+      setError("Please choose a PDF resume first.");
+      return;
+    }
+
+    if (resumeFile.type !== "application/pdf") {
+      setError("Only PDF resumes are allowed.");
+      setResumeFile(null);
+      return;
+    }
+
+    if (resumeFile.size > 5 * 1024 * 1024) {
+      setError("Resume must be 5 MB or smaller.");
+      setResumeFile(null);
+      return;
+    }
+
+    try {
+      setResumeUploading(true);
+      setError("");
+      setSuccess("");
+
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error("Please sign in again before uploading your resume.");
+      }
+
+      const token = await currentUser.getIdToken();
+      const formData = new FormData();
+      formData.append("resume", resumeFile);
+
+      const apiBase = import.meta.env.VITE_API_URL || "";
+      const response = await fetch(`${apiBase}/api/profile/resume`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to upload resume.");
+      }
+
+      setProfile(data.profile);
+      setForm(makeForm(data.profile));
+      setResumeFile(null);
+      setSuccess("Resume uploaded successfully.");
+      setEditingSection(null);
+    } catch (err) {
+      console.error("Resume upload error:", err);
+      setError(err.message || "Unable to upload resume.");
+    } finally {
+      setResumeUploading(false);
+    }
   }
 
   async function saveSection() {
@@ -1223,9 +1286,63 @@ function Profile({setPage}) {
         </Panel>
 
         <Panel title="Resume" icon={<FileText/>} editing={editing("resume")} onEdit={() => startEdit("resume")}>
-          {editing("resume") ? <div className="form-field"><label>Resume URL</label><input type="url" value={form.resumeUrl} onChange={e=>updateField("resumeUrl",e.target.value)} placeholder="https://..."/></div> : <div className="resume-file">{form.resumeUrl || "No resume uploaded"}</div>}
-          {form.resumeUrl && !editing("resume") && <a className="primary wide" href={form.resumeUrl} target="_blank" rel="noreferrer"><Eye size={17}/> View Resume</a>}
-          {editing("resume") && <SectionActions saving={saving} onCancel={cancelEdit} onSave={saveSection}/>}
+          {form.resumeUrl ? (
+            <div className="resume-file">
+              <FileText size={20}/>
+              <span>Resume uploaded</span>
+            </div>
+          ) : (
+            <div className="resume-file">No resume uploaded</div>
+          )}
+
+          {form.resumeUrl && (
+            <a className="primary wide" href={form.resumeUrl} target="_blank" rel="noreferrer">
+              <Eye size={17}/> View Resume
+            </a>
+          )}
+
+          {editing("resume") && (
+            <div className="resume-upload-box">
+              <div className="form-field">
+                <label>Upload Resume (PDF only, max 5 MB)</label>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={e => {
+                    const file = e.target.files?.[0] || null;
+                    setError("");
+                    setSuccess("");
+                    setResumeFile(file);
+                  }}
+                  disabled={resumeUploading}
+                />
+                {resumeFile && (
+                  <small>
+                    Selected: {resumeFile.name} ({(resumeFile.size / (1024 * 1024)).toFixed(2)} MB)
+                  </small>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="primary"
+                onClick={uploadResume}
+                disabled={resumeUploading || !resumeFile}
+              >
+                <Upload size={17}/>
+                {resumeUploading ? "Uploading..." : "Upload Resume"}
+              </button>
+
+              <button
+                type="button"
+                className="secondary"
+                onClick={cancelEdit}
+                disabled={resumeUploading}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </Panel>
 
         <div className="ai-profile"><Sparkles/><h3>AI Profile Insight</h3><p>Keep your skills, projects, education, and resume updated to improve job matching accuracy.</p></div>
