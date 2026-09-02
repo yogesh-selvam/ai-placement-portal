@@ -13,11 +13,57 @@ import {
 } from "firebase-admin/app";
 
 import { getAuth as getFirebaseAuth } from "firebase-admin/auth";
+import { v2 as cloudinary } from "cloudinary";
+import multer from "multer";
 dotenv.config();
 
 const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+cloudinary.config({
+  cloud_name: String(process.env.CLOUDINARY_CLOUD_NAME || "").trim(),
+  api_key: String(process.env.CLOUDINARY_API_KEY || "").trim(),
+  api_secret: String(process.env.CLOUDINARY_API_SECRET || "").trim(),
+});
+
+const resumeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype !== "application/pdf") {
+      return cb(new Error("Only PDF files are allowed."));
+    }
+    cb(null, true);
+  },
+});
+
+function uploadPdfToCloudinary(file, userId) {
+  return new Promise((resolve, reject) => {
+    const safeName = String(file.originalname || "resume.pdf")
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .replace(/\.pdf$/i, "");
+
+    const publicId = `resumes/${userId}/${Date.now()}-${safeName || "resume"}`;
+
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "raw",
+        public_id: publicId,
+        format: "pdf",
+        overwrite: false,
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+
+    stream.end(file.buffer);
+  });
+}
 
 let firebaseAuth = null;
 
@@ -1784,6 +1830,75 @@ app.put(
       console.error("Profile update error:", err);
       res.status(500).json({
         message: "Unable to save profile",
+      });
+    }
+  }
+);
+
+/* =========================
+   RESUME UPLOAD
+========================= */
+
+app.post(
+  "/api/profile/resume",
+  auth,
+  (req, res, next) => {
+    resumeUpload.single("resume")(req, res, (err) => {
+      if (err) {
+        if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({
+            message: "Resume must be 5 MB or smaller.",
+          });
+        }
+
+        return res.status(400).json({
+          message: err.message || "Invalid resume file.",
+        });
+      }
+
+      next();
+    });
+  },
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          message: "Please select a PDF resume to upload.",
+        });
+      }
+
+      const cloudName = String(process.env.CLOUDINARY_CLOUD_NAME || "").trim();
+      const apiKey = String(process.env.CLOUDINARY_API_KEY || "").trim();
+      const apiSecret = String(process.env.CLOUDINARY_API_SECRET || "").trim();
+
+      if (!cloudName || !apiKey || !apiSecret) {
+        return res.status(500).json({
+          message: "Cloudinary is not configured on the server.",
+        });
+      }
+
+      const result = await uploadPdfToCloudinary(req.file, req.user.id);
+
+      const profile = await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          resumeUrl: result.secure_url,
+        },
+        include: {
+          skills: true,
+          projects: true,
+        },
+      });
+
+      res.json({
+        message: "Resume uploaded successfully",
+        resumeUrl: result.secure_url,
+        profile,
+      });
+    } catch (err) {
+      console.error("Resume upload error:", err);
+      res.status(500).json({
+        message: "Unable to upload resume",
       });
     }
   }
